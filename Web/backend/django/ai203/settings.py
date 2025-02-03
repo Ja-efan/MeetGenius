@@ -11,7 +11,11 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -100,11 +104,11 @@ WSGI_APPLICATION = 'ai203.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql', # MariaDB도 MySQL 백엔드 사용
-        'NAME': 'test_maria',
+        'NAME': os.getenv('DATABASENAME','test_maria'),
         'USER': 'root',
-        'PASSWORD':'',
+        'PASSWORD':os.getenv('DATABASEPASSWORD',''),
         'HOST': 'localhost',
-        'PORT': '',
+        'PORT': os.getenv('DATABASEPORT',''),
 
     }
 }
@@ -186,6 +190,5 @@ CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
 
 
 AUTHENTICATION_BACKENDS = [
-    'accounts.authentication.EmployeeNumberBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]

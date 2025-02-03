@@ -22,7 +22,7 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
-# 프로젝트참여자 모델델    
+# 프로젝트참여자 모델
 class ProjectParticipation(models.Model):
     ROLE_CHOICES = [
         (0, "Master"),
@@ -33,8 +33,14 @@ class ProjectParticipation(models.Model):
     participant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="project_participations")
     authority = models.IntegerField(choices=ROLE_CHOICES, default=1)
 
+    # 한 사용자가 같은 프로젝트 중복 참여 방지 (DB단에서 제약조건 추가.)
     class Meta:
-        unique_together = ('project', 'participant')  # 한 사용자가 같은 프로젝트 중복 참여 방지
+        constraints = [
+            models.UniqueConstraint(
+                    fields=['project', 'participant'], 
+                    name='unique_project_participant'
+                    )
+        ]
 
     def __str__(self):
         return f"{self.participant} - {self.project}"
@@ -46,8 +52,8 @@ class Document(models.Model):
         (1, "요약 후 회의록"),
         (2, "보고서"),
     ]
-    type = models.IntegerField(choices=TYPE_CHOICES)
-    embedding = models.BooleanField(default=False)
+    type = models.IntegerField(choices=TYPE_CHOICES)    # 어떤 문시인지 구분
+    embedding = models.BooleanField(default=False)      # Embedding 여부
     project = models.ForeignKey(Project,on_delete=models.CASCADE, related_name='documents')
     department = models.ForeignKey(Department,on_delete=models.CASCADE, related_name='documents')
 
