@@ -15,8 +15,8 @@ services:
     runtime: nvidia
     networks:
       - app_network_04
-    working_dir: /backend    # 기본 디렉터리 설정
-    command: uvicorn fastapi.main:app --host 0.0.0.0 --port 8000 --reload
+    working_dir: /backend/fastapi/app    # 기본 디렉터리 설정
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 
   chromadb:
