@@ -1,9 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import FastAPI, APIRouter, BackgroundTasks
 import httpx # FastAPI에서 http 요청 처리 
 import asyncio # 테스트용.
 from dotenv import load_dotenv
-import torch
 from core.embedding_utils import get_tokenizer, get_embedding_model
+from core import rag
+
 
 load_dotenv()
 
@@ -14,10 +15,20 @@ router = APIRouter(
     prefix="/api/stt",
 )
 
-# STT 실행 상태 확인인
+# STT 실행 상태 확인
 is_listening = False
 
-# Django 서버로 데이터 전송 함수 (비동기 HTTPX 요청)
+# RAG 트리거 
+trigger_keywords = ["젯슨", "젯슨아"]
+
+"""
+send_data_to_django()
+
+# Django 서버로 데이터 전송 함수 (비동기 HTTPX 요청) 
+# -> 일반 회의 내용인지 RAG 응답인지 구분하면 좋을 것 같음. 
+# -> data 파라미터에 대한 값으로 json을 받고, json을 넘겨주는게 어떤지
+# ex. {"text": "일반 회의 내용"} / {"question": "RAG 질문 내용"} / {"response": "RAG 생성 응답답" } 
+"""
 async def send_data_to_django(data):
     # httpx.AsyncClient : httpx 비동기 버전..
     async with httpx.AsyncClient() as client:
@@ -29,79 +40,85 @@ async def send_data_to_django(data):
 
 
 # 음성 인식 & Django로 전송하는 함수 ( 백그라운드 실행 )
-async def listen_and_recognize():
+async def listen_and_recognize(app):
     global is_listening
 
     # mic 선언
 
     while is_listening:
         '''
-            mic 읽고, STT 진행 프로세스
+            mic 통해 읽고, STT 진행 및 회의 도중 RAG
         '''
+        print(f"STT is running ... (waiting for audio input)")
         
-        text = '안녕하시렵니까. 기록중이렵니까'
+        transcript = '안녕하시렵니까. 기록중이렵니까'  # 오디오 스트림을 받아야 함 (찬호님 부탁해요)
+        
         # STT 완료된 데이터 Django로 전송
-        await send_data_to_django(text)
+        await send_data_to_django(transcript)
+
+        if any(keyword in transcript for keyword in trigger_keywords):
+            print(f"Trigger keyword in: {transcript}")
+
+            # RAG를 통해 응답 생성
+            answer = await rag.process_query(app, transcript)
+            # 응답 출력
+            print(f"RAG Response: {answer}")
+            await send_data_to_django(answer)
+        
         await asyncio.sleep(0) # CPU 과하게 점유 방지.
 
 
-# STT 시작 엔드포인트
-@router.get("/start/")
-async def start_voice_dectection(background_tasks: BackgroundTasks):
-    """
-        STT 시작.
-    """
-    global is_listening 
-    if is_listening:    # 이미 STT가 진행중이라면면
-        return {"message": "STT is already running"}
-    
-    is_listening = True
-    background_tasks.add_task(listen_and_recognize) # STT 백그라운드 실행
-    return {"message":"STT started"}
+def init_app(app: FastAPI):
 
-# STT 종료 엔드포인트
-@router.get("/stop/")
-async def stop_voice_detection():
-    global is_listening
-    is_listening = False
-    return {"message": "STT stopped"}
+    # STT 시작 엔드포인트
+    @router.get("/start/")
+    async def start_voice_dectection(background_tasks: BackgroundTasks):
+        """
+            STT 시작.
+        """
+        global is_listening 
+
+        # 이미 STT가 진행중이라면면
+        if is_listening:    
+            return {"message": "STT is already running"}
 
 
+        # STT 모델 로드 확인 및 로드 
+        if not hasattr(app.state, "stt_model"):
+            print("Loading STT model ...")
+            app.state.stt_model = None 
 
-'''
-    테스트 코드입니다.
-'''
-# 📝 Django 서버로 데이터 전송 테스트
-# @router.post("/send_data/")
-# async def send_stt():
-#     test_data = [
-#         "하이하이",
-#         "안녕안녕",
-#         "나는 근휘",
-#         "Today's meeting will focus on the quarterly sales report.",
-#         "We need to discuss the progress of the new marketing campaign.",
-#     ]
-    
-#     for data in test_data:
-#         await send_data_to_django(data)
-#         await asyncio.sleep(2)
-    
-#     return {"message": "STT data sent to Django"}
-
-####################################################################################
-
-def init_app(app):
-    @app.on_event('startup')
-    def load_models():
-        print("Loading models...")
-        if not hasattr(app.state, 'stt_model'):
-            print(f"Loading STT model...")
-            app.state.stt_model = None
-
-        if not hasattr(app.state, 'tokenizer'):
-            print(f"Loading Tokeninzer...")
-            app.state.tokenizer = get_tokenizer()
+        # Embedding 모델 로드 확인 및 로드 
+        if not hasattr(app.state, "embedding_model"):
+            print("Loading Embedding model ...")
+            app.state.embedding_model = None 
         
-        if not hasattr(app.state, 'embedding_model'):
-            print(f"Loading Embedding model...")
-            app.state.embedding_model = get_embedding_model()
+        # LLM 로드 확인 및 로드 
+        if not hasattr(app.state, "llm"):
+            print("Loading LLM ...")
+            app.state.llm = None 
+
+        print(f"All models loaded successfully.")
+
+        
+        is_listening = True
+        background_tasks.add_task(listen_and_recognize(app)) # STT 백그라운드 실행
+        return {"message":"Meeting started, models loaded, STT running."}
+
+
+    # STT 종료 엔드포인트
+    @router.get("/stop/")
+    async def stop_voice_detection():
+        global is_listening
+        is_listening = False
+
+        if hasattr(app.state, "stt_model"):
+            del app.state.stt_model
+        if hasattr(app.state, "embedding_model"):
+            del app.state.embedding_model
+        if hasattr(app.state, "llm"):
+            del app.state.llm
+        
+        print("All models unloaded successfully.")
+
+        return {"message": "Meeting ended, models unloaded, STT stopped."}
