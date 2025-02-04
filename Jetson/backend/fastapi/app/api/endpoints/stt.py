@@ -3,7 +3,7 @@ import httpx # FastAPI에서 http 요청 처리
 import asyncio # 테스트용.
 from dotenv import load_dotenv
 from core.embedding_utils import get_tokenizer, get_embedding_model
-from core import rag
+from core import rag, llm_utils
 
 
 load_dotenv()
@@ -74,7 +74,7 @@ def init_app(app: FastAPI):
     @router.get("/start/")
     async def start_voice_dectection(background_tasks: BackgroundTasks):
         """
-            STT 시작.
+            회의 시작 -> 모델 로드 -> STT 시작.
         """
         global is_listening 
 
@@ -85,18 +85,15 @@ def init_app(app: FastAPI):
 
         # STT 모델 로드 확인 및 로드 
         if not hasattr(app.state, "stt_model"):
-            print("Loading STT model ...")
-            app.state.stt_model = None 
+            llm_utils.load_stt_model(app=app)
 
         # Embedding 모델 로드 확인 및 로드 
         if not hasattr(app.state, "embedding_model"):
-            print("Loading Embedding model ...")
-            app.state.embedding_model = None 
+            llm_utils.load_embedding_model(app=app)
         
         # LLM 로드 확인 및 로드 
         if not hasattr(app.state, "llm"):
-            print("Loading LLM ...")
-            app.state.llm = None 
+            llm_utils.load_llm_model(app=app)
 
         print(f"All models loaded successfully.")
 
