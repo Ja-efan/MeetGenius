@@ -1,10 +1,12 @@
 import requests
 import torch
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
+from  sentence_transformers import SentenceTransformer, models
 import json
 import os 
 from dotenv import load_dotenv
 import logging
+
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
@@ -25,9 +27,40 @@ def load_embedding_model(app):
     Embedding 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
     """
     if not hasattr(app.state, "embedding_model"):
+
+        model_name_or_path ="nlpai-lab/KoE5"
+        
         print(f"Loading Embedding model ...")
-        app.state.embedding_model = None 
-        print(f"Embedding model loaded successfully!")
+
+        # 양자화 설정 
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True, # 4-bit 양자화 
+            # load_in_8bit=True, # 8-bit 양자화
+        )
+
+        # 양자화 모델 로드 
+        quantized_model = AutoModel.from_pretrained(model_name_or_path,
+                                          quantization_config=quantization_config)
+        # Tokenizer 로드 
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+
+        # SentenceTransformer 모듈 구성
+        word_embedding_model = models.Transformer(model_name_or_path)
+        word_embedding_model.auto_model = quantized_model  # 기존 모델을 양자화된 모델로 교체 
+
+        # SentenceTransformer 객체 생성
+        sentence_embedding_model = SentenceTransformer(modules=[word_embedding_model])
+
+        # Tokenizer도 명시적으로 설정
+        sentence_embedding_model.tokenizer = tokenizer
+
+        # # GPU로 옮겨야 하나? 
+        # device = "cuda" if torch.cuda.is_available() else "cpu"
+        # sentence_embedding_model.to(device)
+
+        app.state.embedding_model = SentenceTransformer(sentence_embedding_model)
+        
+        logging.info("Embedding model (KoE5) loaded successfully!")
 
 
 def load_llm_model(app):
@@ -37,7 +70,8 @@ def load_llm_model(app):
     if not hasattr(app.state, "llm_model"):
         print(f"Loading LLM model ...")
         app.state.llm_model = None 
-        print(f"LLM model loaded successfully!")
+        # print(f"LLM model loaded successfully!")
+        logging.info("LLM model loaded successfully!")
 
 
 def unload_models(app):
