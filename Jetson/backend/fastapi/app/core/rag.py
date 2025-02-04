@@ -2,7 +2,7 @@
     RAG 관련 함수 모듈 
 """
 
-from typing import Lint, Dict 
+from typing import List, Dict 
 from fastapi import FastAPI
 import chromadb
 
