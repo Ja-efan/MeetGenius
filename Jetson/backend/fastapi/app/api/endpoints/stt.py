@@ -1,13 +1,18 @@
 from fastapi import APIRouter, BackgroundTasks
 import httpx # FastAPI에서 http 요청 처리 
 import asyncio # 테스트용.
+from dotenv import load_dotenv
+import torch
+from core.embedding_utils import get_tokenizer, get_embedding_model
+
+load_dotenv()
+
+# 장고 url 
+django_url = load_dotenv('DJANGO_URL')
 
 router = APIRouter(
     prefix="/api/stt",
 )
-
-# 장고 url 
-django_url = "http://127.0.0.1:8000/tests/stt/" # Django 엔드포인트
 
 # STT 실행 상태 확인인
 is_listening = False
@@ -82,3 +87,21 @@ async def stop_voice_detection():
 #         await asyncio.sleep(2)
     
 #     return {"message": "STT data sent to Django"}
+
+####################################################################################
+
+def init_app(app):
+    @app.on_event('startup')
+    def load_models():
+        print("Loading models...")
+        if not hasattr(app.state, 'stt_model'):
+            print(f"Loading STT model...")
+            app.state.stt_model = None
+
+        if not hasattr(app.state, 'tokenizer'):
+            print(f"Loading Tokeninzer...")
+            app.state.tokenizer = get_tokenizer()
+        
+        if not hasattr(app.state, 'embedding_model'):
+            print(f"Loading Embedding model...")
+            app.state.embedding_model = get_embedding_model()

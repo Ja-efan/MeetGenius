@@ -1,0 +1,39 @@
+services:
+  fastapi:
+    build:
+      context: ./Jetson/backend
+      dockerfile: Dockerfile
+    container_name: fastapi-server
+    ports:
+      - "8000:8000"
+    # 코드 저장소
+    volumes:
+      - ./Jetson/backend:/backend
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    runtime: nvidia
+    networks:
+      - app_network_04
+    working_dir: /backend/fastapi/app    # 기본 디렉터리 설정
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+  chromadb:
+    build:
+      context: ./Jetson/chromaDB
+      dockerfile: Dockerfile
+    container_name: chromadb-server
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./Jetson/chromaDB/data:/chroma/chroma/
+    networks:
+      - app_network_04
+    
+    # chromadb 포트 변경 8000 -> 8001
+    command: uvicorn chromadb.app:app --host 0.0.0.0 --port 8001
+
+networks:
+  app_network_04:
+    driver: bridge
