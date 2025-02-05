@@ -1,46 +1,137 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel # 데이터 검증을 위한 모델
-import torch
+import torch, chromadb
 from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration
 
+# =====
+# swagger ui로 테스트할 텍스트
+synthetic_beauty = "스마트뷰티 캠페인은 현대 뷰티 시장에서 20대와 30대 여성을 주요 타겟층으로 설정하여 AI 기반 개인 맞춤형 뷰티 솔루션을 제공하는 것을 목표로 한다. 시장 조사에 따르면, 20대 여성의 약 65%가 뷰티와 관련된 새로운 기술에 관심을 가지고 있으며, 이 중 40%는 AI를 활용한 피부 분석 기술에 대해 긍정적인 반응을 보였다. 특히, 2024년 글로벌 뷰티 기술 시장의 성장률은 약 12.8%로 예측되고 있으며, 스마트뷰티는 이러한 흐름에 맞춰 혁신적인 기술과 마케팅 전략을 통해 경쟁 우위를 확보하려 하고 있다. 스마트뷰티 캠페인의 가장 큰 강점은 소셜미디어 플랫폼을 활용한 마케팅 전략이다. 인스타그램은 타겟층의 78%가 일주일에 최소 5일 이상 사용하는 플랫폼으로, 소비자 참여와 브랜드 노출을 극대화하는 데 이상적이다. 틱톡은 젊은 층에서 바이럴 콘텐츠를 확산시키는 데 유리하며, 스마트뷰티는 틱톡 해시태그 챌린지를 통해 약 5천만 조회수를 기록하는 것을 목표로 하고 있다. 유튜브는 심층적인 콘텐츠를 전달할 수 있는 매체로 활용되어, 제품 리뷰 및 사용법 영상을 통해 소비자의 신뢰를 쌓는 데 중점을 둔다. 각 플랫폼은 스마트뷰티의 메시지를 효과적으로 전달하기 위한 역할을 분담하고 있다. 스마트뷰티의 주요 경쟁사로는 B사의 글로벌 뷰티 스캐너가 있다. 이 제품은 AI 기술로 피부 상태를 분석하고 맞춤형 솔루션을 제공하며, 시장 점유율이 약 28%에 달한다. 그러나 스마트뷰티는 경쟁사와 차별화를 위해 정서적 연결을 강화하는 전략을 채택했다. 예를 들어, 소비자 커뮤니티 플랫폼을 구축하여 사용자 리뷰와 경험을 공유하고, AI 분석 결과를 기반으로 한 개인 맞춤형 뷰티 케어 플랜을 제공함으로써 차별화를 꾀하고 있다. 이러한 플랜은 사용자별로 최적화된 스킨케어 루틴과 제품 추천을 포함하며, 약 87%의 사용자 만족도를 목표로 한다. 스마트뷰티 캠페인의 초기 예산은 약 20억 원으로 책정되었다. 이 중 40%는 소셜미디어 마케팅에 배정되었으며, 나머지는 제품 개발(30%), 소비자 체험 이벤트(20%), 기술 연구 및 데이터 보안 강화(10%)에 사용될 예정이다. 소셜미디어 마케팅 예산은 약 8억 원으로, 인스타그램 광고, 틱톡 캠페인, 유튜브 콘텐츠 제작 등에 집중적으로 투자된다. 특히, 틱톡 캠페인을 통해 월간 캠페인 참여율 15% 증가와 브랜드 인지도 상승을 기대하고 있다. 스마트뷰티 캠페인은 리스크 관리 전략도 철저히 마련하고 있다. 예를 들어, 개인정보 보호와 관련된 소비자 우려를 해소하기 위해 데이터 암호화 기술을 도입하고, 소비자가 데이터 사용 방식을 직접 관리할 수 있는 옵션을 제공한다. 또한, 초기 사용자 피드백을 기반으로 제품 개선 주기를 단축하여 출시 후 6개월 이내에 주요 개선 사항을 반영할 계획이다. 시장 진입 초기 발생할 수 있는 높은 마케팅 비용 문제를 해결하기 위해, 캠페인의 ROI(Return on Investment)를 정기적으로 분석하고, 효율성이 낮은 채널에는 예산을 줄이며 고효율 채널로 집중 투자하는 방식으로 운영된다. 스마트뷰티 캠페인은 소비자 중심의 혁신과 정서적 연결을 기반으로 경쟁사와 차별화된 전략을 제시하며, 뷰티 산업에서 독보적인 입지를 확보하는 것을 목표로 한다. 2025년까지 글로벌 시장 점유율 15%를 달성하고, 고객 만족도 90% 이상을 유지하며, 매출 성장률 연평균 25%를 기록하는 것을 중장기적 목표로 설정하고 있다. 이를 통해 스마트뷰티는 단순한 뷰티 기기를 넘어 소비자의 라이프스타일을 변화시키는 동반자로 자리 잡고자 한다."
+synthetic_health = "스마트 헬스케어 플랫폼은 현대의 디지털 기술과 의료 서비스를 통합하여 개인 맞춤형 건강 관리 솔루션을 제공하는 것을 목표로 한다. 이 플랫폼은 웨어러블 디바이스, 모바일 애플리케이션, 클라우드 데이터베이스, 인공지능 알고리즘 등을 활용해 사용자의 건강 데이터를 실시간으로 수집, 분석하고 이를 바탕으로 맞춤형 건강 관리 방안을 제안한다. 스마트 헬스케어는 4차 산업혁명의 핵심 분야 중 하나로, 글로벌 헬스케어 시장은 2024년까지 약 12%의 연평균 성장률을 기록하며 500억 달러 규모에 이를 것으로 전망된다. 스마트 헬스케어 플랫폼의 주요 타겟층은 건강에 대한 관심이 높고 기술에 익숙한 30대에서 50대 중반의 소비자들이다. 특히 만성질환 관리가 필요한 환자, 라이프스타일 개선에 관심이 있는 일반 소비자, 그리고 피트니스와 웰니스 관련 목표를 가진 사용자가 주요 사용자층으로 정의된다. 이러한 타겟층의 75%는 이미 스마트 워치나 피트니스 밴드와 같은 웨어러블 디바이스를 활용하고 있으며, 이 데이터를 통합적으로 관리하고 분석해주는 플랫폼에 대한 요구가 높아지고 있다. 스마트 헬스케어 플랫폼은 크게 다음 세 가지 핵심 기능을 중심으로 설계된다. 첫째, 실시간 데이터 수집과 분석 기능이다. 웨어러블 디바이스를 통해 심박수, 수면 패턴, 혈압, 혈당 등의 데이터를 지속적으로 수집하고 이를 클라우드 기반 데이터베이스에 저장한다. 인공지능 알고리즘을 활용해 이 데이터를 분석함으로써 사용자의 건강 상태를 실시간으로 모니터링하고 이상 징후를 조기에 발견할 수 있다. 예를 들어, 심박수 변동과 수면 패턴의 변화를 분석해 스트레스 수준을 예측하거나, 특정 수치가 위험 수준에 도달했을 때 사용자가 즉시 알림을 받을 수 있도록 설계된다. 둘째, 개인 맞춤형 건강 관리 솔루션 제공 기능이다. AI와 머신러닝 알고리즘은 사용자의 건강 데이터를 분석해 개인화된 건강 목표와 추천 사항을 제안한다. 예를 들어, 만성질환이 있는 사용자는 약물 복용 시간 알림, 운동 추천, 식단 계획 등을 제공받을 수 있으며, 피트니스 목표를 가진 사용자는 개인의 운동 기록과 신체 데이터를 기반으로 운동 루틴을 제안받을 수 있다. 이러한 개인화된 솔루션은 사용자가 일상생활에서 더 나은 건강 습관을 형성하도록 돕는다. 셋째, 사용자와 의료 전문가를 연결하는 기능이다. 플랫폼은 사용자가 자신의 건강 데이터를 의료 전문가와 공유할 수 있는 기능을 제공하며, 이를 통해 더 정밀한 건강 상담과 진단이 가능하도록 한다. 예를 들어, 사용자가 주기적으로 기록한 혈압과 혈당 데이터를 기반으로 의사가 사용자의 상태를 원격으로 진단하고 필요한 경우 비대면 상담을 통해 처방이나 치료 계획을 제안할 수 있다. 이러한 연결은 특히 고령층이나 의료 접근성이 낮은 지역에서 매우 유용하다. 스마트 헬스케어 플랫폼의 성공적인 운영을 위해서는 몇 가지 중요한 요소가 필요하다. 첫째, 데이터 보안과 개인정보 보호를 위한 철저한 시스템 설계가 필요하다. 사용자의 건강 데이터는 민감한 정보이기 때문에, 이를 암호화하고 GDPR, HIPAA와 같은 규정을 준수하는 것이 필수적이다. 둘째, 플랫폼의 사용자 경험(UX)을 강화해야 한다. 사용자가 쉽게 데이터를 입력하고 분석 결과를 이해할 수 있도록 직관적인 인터페이스와 시각화 기능을 제공해야 한다. 셋째, 신뢰성 있는 파트너십 구축이 중요하다. 의료 기기 제조사, 병원, 보험사 등과 협력하여 플랫폼의 생태계를 확장하고 더 많은 가치를 제공해야 한다. 이 플랫폼은 의료비 절감, 의료 접근성 개선, 소비자의 건강 관리 능력 향상이라는 사회적 가치를 제공할 수 있다. 예를 들어, 만성질환 환자가 스마트 헬스케어 플랫폼을 통해 건강 상태를 효과적으로 관리하면 병원 방문 횟수를 줄이고, 결과적으로 연간 20% 이상의 의료비를 절감할 수 있다는 연구 결과가 있다. 또한, 도시와 농촌 지역 간의 의료 서비스 격차를 줄이는 데 기여할 수 있으며, 사용자의 건강 정보를 통합적으로 관리함으로써 예방적 건강 관리를 활성화할 수 있다. 스마트 헬스케어 플랫폼은 단순히 기술을 넘어 개인과 사회의 건강을 향상시키는 데 기여할 수 있는 중요한 도구로 자리 잡고 있다. 앞으로 이러한 플랫폼의 발전과 보급은 의료 산업뿐만 아니라 사회 전반에 걸쳐 긍정적인 변화를 가져올 것이다. IT 기획자로서 이러한 플랫폼의 설계와 운영을 통해 건강하고 지속 가능한 사회를 만들어가는 데 기여할 수 있을 것이다."
+# =====
+
+
+# koBART 모델
 model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
 tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
 model = BartForConditionalGeneration.from_pretrained(model_name)
+
+
+# chromaDB 클라이언트
+client = chromadb.PersistentClient(path="./chroma_db")
+collection = client.get_or_create_collection(name="table")
+
 
 router = APIRouter(
     prefix="/api/reports",
 )
 
+
 # 실제로는 ChromaDB에서 가져와야 함 !!!
-class OriginText(BaseModel):
-    doc_ids: list[int] # int로 받는지? str으로 받는지?
-    text: str # 요약할 '수정 원문 내용'
+class OriginDocId(BaseModel):
+    doc_ids: list[str] # ChromaDB의 문서 ID들
+
 
 @router.get("/")
 def test():
-    return 'reports page'
+    return {"message":"reports page is running"}
 
-@router.post("/summary/")
-async def summarize_text(origin_text: OriginText):
-    text = origin_text.text.replace('\n', ' ') # 줄바꿈 제거
-    inputs = tokenizer(text, return_tensors='pt', max_length=512, truncation=True) # 일단은 512 토큰으로 자르기 
 
-    with torch.no_grad():
-        summary_ids = model.generate(
-            inputs["input_ids"],
-            num_beams=4,
-            max_length=150,
-            early_stopping=True
-        )
-
-    summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-    
-    return {
-        "origin_text": text,
-        "summary": summary
+# ChromaDB에서 문서 ID 기반으로 내용 가져오기
+# 일단 이 엔드포인트는 doc_id 잘 가져오는지 확인하기 위함... get_document 함수만 있으면 될듯?
+@router.get("/get_document/{doc_id}")
+async def get_document(doc_id: str):
+    # =====
+    # 일단 하드코딩으로 테스트 해보자
+    test_results = {
+        "2_1": synthetic_beauty,
+        "2_2": synthetic_health
     }
+    
+    if doc_id in test_results:
+        return {
+            "id": doc_id,
+            "content": test_results[doc_id]
+        }
+    return {"error": "Document cannot be found"}
+    # =====
 
-"""
-swagger ui로 테스트할 텍스트
-"스마트뷰티 캠페인은 현대 뷰티 시장에서 20대와 30대 여성을 주요 타겟층으로 설정하여 AI 기반 개인 맞춤형 뷰티 솔루션을 제공하는 것을 목표로 한다. 시장 조사에 따르면, 20대 여성의 약 65%가 뷰티와 관련된 새로운 기술에 관심을 가지고 있으며, 이 중 40%는 AI를 활용한 피부 분석 기술에 대해 긍정적인 반응을 보였다. 특히, 2024년 글로벌 뷰티 기술 시장의 성장률은 약 12.8%로 예측되고 있으며, 스마트뷰티는 이러한 흐름에 맞춰 혁신적인 기술과 마케팅 전략을 통해 경쟁 우위를 확보하려 하고 있다. 스마트뷰티 캠페인의 가장 큰 강점은 소셜미디어 플랫폼을 활용한 마케팅 전략이다. 인스타그램은 타겟층의 78%가 일주일에 최소 5일 이상 사용하는 플랫폼으로, 소비자 참여와 브랜드 노출을 극대화하는 데 이상적이다. 틱톡은 젊은 층에서 바이럴 콘텐츠를 확산시키는 데 유리하며, 스마트뷰티는 틱톡 해시태그 챌린지를 통해 약 5천만 조회수를 기록하는 것을 목표로 하고 있다. 유튜브는 심층적인 콘텐츠를 전달할 수 있는 매체로 활용되어, 제품 리뷰 및 사용법 영상을 통해 소비자의 신뢰를 쌓는 데 중점을 둔다. 각 플랫폼은 스마트뷰티의 메시지를 효과적으로 전달하기 위한 역할을 분담하고 있다. 스마트뷰티의 주요 경쟁사로는 B사의 글로벌 뷰티 스캐너가 있다. 이 제품은 AI 기술로 피부 상태를 분석하고 맞춤형 솔루션을 제공하며, 시장 점유율이 약 28%에 달한다. 그러나 스마트뷰티는 경쟁사와 차별화를 위해 정서적 연결을 강화하는 전략을 채택했다. 예를 들어, 소비자 커뮤니티 플랫폼을 구축하여 사용자 리뷰와 경험을 공유하고, AI 분석 결과를 기반으로 한 개인 맞춤형 뷰티 케어 플랜을 제공함으로써 차별화를 꾀하고 있다. 이러한 플랜은 사용자별로 최적화된 스킨케어 루틴과 제품 추천을 포함하며, 약 87%의 사용자 만족도를 목표로 한다. 스마트뷰티 캠페인의 초기 예산은 약 20억 원으로 책정되었다. 이 중 40%는 소셜미디어 마케팅에 배정되었으며, 나머지는 제품 개발(30%), 소비자 체험 이벤트(20%), 기술 연구 및 데이터 보안 강화(10%)에 사용될 예정이다. 소셜미디어 마케팅 예산은 약 8억 원으로, 인스타그램 광고, 틱톡 캠페인, 유튜브 콘텐츠 제작 등에 집중적으로 투자된다. 특히, 틱톡 캠페인을 통해 월간 캠페인 참여율 15% 증가와 브랜드 인지도 상승을 기대하고 있다. 스마트뷰티 캠페인은 리스크 관리 전략도 철저히 마련하고 있다. 예를 들어, 개인정보 보호와 관련된 소비자 우려를 해소하기 위해 데이터 암호화 기술을 도입하고, 소비자가 데이터 사용 방식을 직접 관리할 수 있는 옵션을 제공한다. 또한, 초기 사용자 피드백을 기반으로 제품 개선 주기를 단축하여 출시 후 6개월 이내에 주요 개선 사항을 반영할 계획이다. 시장 진입 초기 발생할 수 있는 높은 마케팅 비용 문제를 해결하기 위해, 캠페인의 ROI(Return on Investment)를 정기적으로 분석하고, 효율성이 낮은 채널에는 예산을 줄이며 고효율 채널로 집중 투자하는 방식으로 운영된다. 스마트뷰티 캠페인은 소비자 중심의 혁신과 정서적 연결을 기반으로 경쟁사와 차별화된 전략을 제시하며, 뷰티 산업에서 독보적인 입지를 확보하는 것을 목표로 한다. 2025년까지 글로벌 시장 점유율 15%를 달성하고, 고객 만족도 90% 이상을 유지하며, 매출 성장률 연평균 25%를 기록하는 것을 중장기적 목표로 설정하고 있다. 이를 통해 스마트뷰티는 단순한 뷰티 기기를 넘어 소비자의 라이프스타일을 변화시키는 동반자로 자리 잡고자 한다."
-"""
+    """
+    # 실제로 ChromaDB랑 연결할 때 쓸 코드 !!!
+    results = collection.get(ids=[doc_id]) # doc_id: ChromaDB에 저장된 id / 예시) 2_1, 2_2
+    
+    if results["documents"]:
+        return {
+            "id": doc_id,
+            "content": results["documents"][0]
+        }
+    return {"error": "Document cannot be found"}
+    """
+    
+
+# 요약 하기 & 요약 내용 반환
+@router.post("/summary/")
+async def summarize_text(origin_doc: OriginDocId):
+    summaries = [] # 여러 개 문서 요약하기 위함 
+
+    # =====
+    # 일단 하드코딩으로 테스트 해보자
+    test_results = {
+        "2_1": synthetic_beauty,
+        "2_2": synthetic_health
+    }
+    # =====
+
+    for doc_id in origin_doc.doc_ids:
+        # =====
+        # 일단 하드코딩으로 테스트 해보자
+        if doc_id in test_results:
+            text = test_results[doc_id].replace('\n', ' ')
+            inputs = tokenizer(text, return_tensors='pt', max_length=512, truncation=True) # 일단은 512 토큰으로 자르기
+            with torch.no_grad():
+                summary_ids = model.generate(
+                    inputs["input_ids"],
+                    num_beams=4,
+                    max_length=150,
+                    early_stopping=True
+                )
+
+            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+            summaries.append({
+                "id": doc_id,
+                "origin_content": text,
+                "summary": summary
+            })
+    
+        else:
+            raise HTTPException(status_code=404, detail=f"문서 ID {doc_id}를 찾을 수 없습니다.")
+        # =====
+
+        """
+        results = collection.get(ids=[doc_id])
+        if results["documents"]:
+            text = results["documents"][0].replace('\n', ' ') # 줄바꿈 제거
+            inputs = tokenizer(text, return_tensors='pt', max_length=512, truncation=True) # 일단은 512 토큰으로 자르기 
+
+            with torch.no_grad():
+                summary_ids = model.generate(
+                    inputs["input_ids"],
+                    num_beams=4,
+                    max_length=150,
+                    early_stopping=True
+                )
+
+            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+            summaries.append({
+                "id": doc_id,
+                "origin_content": text,
+                "summary": summary
+            })
+    
+        else:
+            raise HTTPException(status_code=404, detail=f"문서 ID {doc_id}를 찾을 수 없습니다.")
+        """
+
+    return {"summaries": summaries}
+
