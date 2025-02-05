@@ -6,12 +6,13 @@ from core.embedding_utils import get_tokenizer, get_embedding_model
 from core import rag, llm_utils
 import torch
 import gc
+import os
 
 
 load_dotenv()
 
 # 장고 url 
-django_url = load_dotenv('DJANGO_URL')
+django_url = os.getenv('DJANGO_URL')
 
 router = APIRouter(
     prefix="/api/stt",
@@ -94,8 +95,8 @@ def init_app(app: FastAPI):
             llm_utils.load_embedding_model(app=app)
         
         # LLM 로드 확인 및 로드 
-        if not hasattr(app.state, "llm"):
-            llm_utils.load_llm_model(app=app)
+        if not hasattr(app.state, "rag_model"):
+            llm_utils.load_rag_model(app=app)
 
         print(f"All models loaded successfully.")
 
@@ -116,8 +117,8 @@ def init_app(app: FastAPI):
                 del app.state.stt_model
             if hasattr(app.state, "embedding_model"):
                 del app.state.embedding_model
-            if hasattr(app.state, "llm"):
-                del app.state.llm
+            if hasattr(app.state, "rag_model"):
+                del app.state.rag_model
             
              # ✅ 강제 Garbage Collection 실행 (CPU 메모리 해제)
             gc.collect()

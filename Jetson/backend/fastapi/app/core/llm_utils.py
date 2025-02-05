@@ -1,11 +1,12 @@
 import requests
 import torch
-from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, BitsAndBytesConfig
 from  sentence_transformers import SentenceTransformer, models
 import json
 import os 
 from dotenv import load_dotenv
 import logging
+# from llama_cpp 
 
 
 # 로그 설정
@@ -60,15 +61,33 @@ def load_embedding_model(app):
         logging.info("Embedding model (KoE5) loaded successfully!")
 
 
-def load_llm_model(app):
+def load_rag_model(app):
     """
     LLM을 로드하여 FastAPI의 상태 (app.state)에 저장 
     """
-    if not hasattr(app.state, "llm_model"):
-        print(f"Loading LLM model ...")
-        app.state.llm_model = None 
+    if not hasattr(app.state, "rag_model"):
+
+        model_name_or_path = "Qwen/Qwen2.5-0.5B-Instruct"
+
+        print(f"Loading RAG model ...")
+
+        # 양자화 설정
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            # load_in_8bit=True,
+        )
+
+        # 양자화된 모델 로드 
+        quantized_model = model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
+                                                                       quantization_config=quantization_config,
+                                                                       cache_dir="../.huggingface-cache/")
+    
+        app.state.rag_model = None 
         # print(f"LLM model loaded successfully!")
-        logging.info("LLM model loaded successfully!")
+        logging.info("RAG model loaded successfully!")
+
+def load_summary_model(app):
+    pass 
 
 
 def unload_models(app):
@@ -83,8 +102,8 @@ def unload_models(app):
         del app.state.embedding_model
         print(f"Embedding model unloaded!")
     
-    if hasattr(app.state, "llm_model"):
-        del app.state.llm_model
-        print(f"LLM model unloaded!")
+    if hasattr(app.state, "rag_model"):
+        del app.state.rag_model
+        print(f"RAG model unloaded!")
     
     print("All models unloaded successfully!!")
