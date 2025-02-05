@@ -101,10 +101,4 @@ transformers==4.48.2
 typer==0.15.1
 typing_extensions==4.12.2
 tzdata==2025.1
-urllib3==2.3.0
 uvicorn==0.34.0
-watchfiles==1.0.4
-websocket-client==1.8.0
-websockets==14.2
-wrapt==1.17.2
-zipp==3.21.0
