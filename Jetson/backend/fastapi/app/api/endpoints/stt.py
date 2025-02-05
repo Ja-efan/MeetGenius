@@ -4,6 +4,8 @@ import asyncio # 테스트용.
 from dotenv import load_dotenv
 from core.embedding_utils import get_tokenizer, get_embedding_model
 from core import rag, llm_utils
+import torch
+import gc
 
 
 load_dotenv()
@@ -99,7 +101,7 @@ def init_app(app: FastAPI):
 
         
         is_listening = True
-        background_tasks.add_task(listen_and_recognize(app)) # STT 백그라운드 실행
+        background_tasks.add_task(listen_and_recognize, app) # STT 백그라운드 실행 -> 함수 결과가 아닌 함수 자체를 넘겨야 함
         return {"message":"Meeting started, models loaded, STT running."}
 
 
@@ -109,13 +111,26 @@ def init_app(app: FastAPI):
         global is_listening
         is_listening = False
 
-        if hasattr(app.state, "stt_model"):
-            del app.state.stt_model
-        if hasattr(app.state, "embedding_model"):
-            del app.state.embedding_model
-        if hasattr(app.state, "llm"):
-            del app.state.llm
-        
-        print("All models unloaded successfully.")
+        try:
+            if hasattr(app.state, "stt_model"):
+                del app.state.stt_model
+            if hasattr(app.state, "embedding_model"):
+                del app.state.embedding_model
+            if hasattr(app.state, "llm"):
+                del app.state.llm
+            
+             # ✅ 강제 Garbage Collection 실행 (CPU 메모리 해제)
+            gc.collect()
 
-        return {"message": "Meeting ended, models unloaded, STT stopped."}
+            if torch.cuda.is_available():
+                print(f"CUDA: {torch.cuda.is_available()}")
+                torch.cuda.empty_cache()
+
+            print("All models unloaded successfully.")
+            
+            return {"message": "Meeting ended, models unloaded, STT stopped."}
+        
+        except Exception as e:
+            return {"error": f"Failed to unload models: {str(e)}"}
+
+        
