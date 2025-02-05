@@ -40,7 +40,8 @@ def load_embedding_model(app):
 
         # 양자화 모델 로드 
         quantized_model = AutoModel.from_pretrained(model_name_or_path,
-                                          quantization_config=quantization_config)
+                                          quantization_config=quantization_config,
+                                          cache_dir="../.huggingface-cache/")
         # Tokenizer 로드 
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
@@ -54,11 +55,7 @@ def load_embedding_model(app):
         # Tokenizer도 명시적으로 설정
         sentence_embedding_model.tokenizer = tokenizer
 
-        # # GPU로 옮겨야 하나? 
-        # device = "cuda" if torch.cuda.is_available() else "cpu"
-        # sentence_embedding_model.to(device)
-
-        app.state.embedding_model = SentenceTransformer(sentence_embedding_model)
+        app.state.embedding_model = sentence_embedding_model
         
         logging.info("Embedding model (KoE5) loaded successfully!")
 
