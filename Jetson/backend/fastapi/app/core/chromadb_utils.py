@@ -4,6 +4,7 @@ import os
 import platform
 from dotenv import load_dotenv
 from typing import Any, Dict, List
+from models import EmbeddingDocument
 
 # 환경 변수 로드
 load_dotenv()
@@ -37,15 +38,23 @@ class ChromaCollection:
             return chromadb.HttpClient(host="chromadb-server", port=8001, ssl=False)  # Jetson에서 ChromaDB 서버에 연결
 
 
-    def insert_data(self, data: List[Dict[str, Any]]) -> None:
+    def insert_data(self, data: List[EmbeddingDocument]) -> None:
         """데이터(문서)를 ChromaDB 컬렉션에 삽입"""
-        for doc in data:
+        # for doc in data:
+        #     self.collection.add(
+        #         ids=[doc["id"]],
+        #         metadatas=[doc.get("metadata", {})],
+        #         documents=[doc["text"]],
+        #     )
+
+        for embedding_document in data:
             self.collection.add(
-                ids=[doc["id"]],
-                metadatas=[doc.get("metadata", {})],
-                documents=[doc["text"]],
+                ids=[embedding_document.ids],
+                metadatas=[embedding_document.metadatas],
+                documents=[embedding_document.documents],
             )
-            print(f"Document({doc['id']}) saved successfully!")
+            print(f"Document({embedding_document.ids}) saved successfully!")
+            
         print(f"All documents saved successfully!!")
 
 
@@ -78,7 +87,7 @@ class ChromaCollection:
 
 
 # FastAPI와 연동하는 Dependency Injection 함수
-def get_chroma_collection(app, collection_name: str) -> ChromaCollection:
+def get_project_collection(app, project_id: str) -> ChromaCollection:
     """FastAPI에서 ChromaDB Collection을 관리하도록 하는 함수
     
     - 프로젝트 관련 collection 생성 및 app.state에 저장
@@ -89,10 +98,16 @@ def get_chroma_collection(app, collection_name: str) -> ChromaCollection:
     Returns:
         ChromaCollection: ChromaDB Collection 인스턴스
     """
-    if not hasattr(app.state, "chromadb_collections"):
+
+    # chromadb_collections: 프로젝트 관련 collection 목록
+    # chromadb_collections[collection_name]: 프로젝트 관련 collection 인스턴스
+
+    # 초기화 되지 않았다면 초기화
+    if not hasattr(app.state, "chromadb_collections"): 
         app.state.chromadb_collections = {}
 
-    if collection_name not in app.state.chromadb_collections:
-        app.state.chromadb_collections[collection_name] = ChromaCollection(collection_name=collection_name)
+    # project_id 컬렉션이 초기화 되지 않았다면 초기화
+    if project_id not in app.state.chromadb_collections:
+        app.state.chromadb_collections[project_id] = ChromaCollection(collection_name=project_id)
 
-    return app.state.chromadb_collections[collection_name]
+    return app.state.chromadb_collections[project_id]  # 프로젝트 관련 collection 인스턴스 반환
