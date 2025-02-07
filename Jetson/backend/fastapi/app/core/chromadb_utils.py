@@ -14,17 +14,18 @@ load_dotenv()
 class ChromaCollection:
     """ChromaDB Collection 관리 클래스"""
 
-    def __init__(self, collection_name: str):
+    def __init__(self, collection_name: str, app: FastAPI = Depends()):
         """ChromaCollection 생성자
 
         Args:
             collection_name (str): 사용할 ChromaDB 컬렉션 이름
+            app (FastAPI): FastAPI 인스턴스
         """
         self.collection_name = collection_name
         self.client = self._get_chroma_client()
 
         self.collection = self.client.get_or_create_collection(name=collection_name)
-
+        self.app = app
 
     def _get_chroma_client(self):
         """운영 체제에 따라 적절한 ChromaDB 클라이언트를 선택"""
@@ -41,12 +42,6 @@ class ChromaCollection:
 
     def insert_data(self, data: List[EmbeddingDocument]) -> None:
         """데이터(문서)를 ChromaDB 컬렉션에 삽입"""
-        # for doc in data:
-        #     self.collection.add(
-        #         ids=[doc["id"]],
-        #         metadatas=[doc.get("metadata", {})],
-        #         documents=[doc["text"]],
-        #     )
 
         for embedding_document in data:
             self.collection.add(
@@ -86,7 +81,23 @@ class ChromaCollection:
         """컬렉션 삭제"""
         self.client.delete_collection(self.collection.name)
 
-
+    def search_documents_by_agenda(self, agenda: str, top_k: int = 3):
+        """안건명(agenda)과 유사한 문서 검색"""
+        # 임베딩 모델 
+        model = self.app.state.embedding_model
+        # 안건명 포맷팅 (KoE5 모델 사용)
+        formatted_agenda = [f"query: {agenda}"]
+        # 임베딩 임베딩 결과 
+        agenda_embedding = model.encode(formatted_agenda)
+        
+        # collection
+        collection = self.collection
+        
+        # 안건명과 유사한 문서 검색
+        results = collection.query(query_embeddings=agenda_embedding, n_results=top_k)
+        
+        return results
+        
 # FastAPI와 연동하는 Dependency Injection 함수
 def get_project_collection(project_id: str, app: FastAPI = Depends()) -> ChromaCollection:
     """FastAPI에서 ChromaDB Collection을 관리하도록 하는 함수
