@@ -5,6 +5,7 @@ import platform
 from dotenv import load_dotenv
 from typing import Any, Dict, List
 from models import EmbeddingDocument
+from fastapi import FastAPI, Depends
 
 # 환경 변수 로드
 load_dotenv()
@@ -87,7 +88,7 @@ class ChromaCollection:
 
 
 # FastAPI와 연동하는 Dependency Injection 함수
-def get_project_collection(app, project_id: str) -> ChromaCollection:
+def get_project_collection(project_id: str, app: FastAPI = Depends()) -> ChromaCollection:
     """FastAPI에서 ChromaDB Collection을 관리하도록 하는 함수
     
     - 프로젝트 관련 collection 생성 및 app.state에 저장
