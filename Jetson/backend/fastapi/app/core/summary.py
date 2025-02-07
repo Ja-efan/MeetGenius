@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel # 데이터 검증을 위한 모델
-import torch, chromadb
-from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration
+"""
+    요약 관련 함수 모듈 
+"""
+
+from typing import List, Dict
+from fastapi import FastAPI, HTTPException, Depends
+import torch
+from core.llm_utils import load_summary_model
 
 # =====
 # swagger ui로 테스트할 텍스트
@@ -9,109 +13,40 @@ synthetic_beauty = "스마트뷰티 캠페인은 현대 뷰티 시장에서 20�
 synthetic_health = "스마트 헬스케어 플랫폼은 현대의 디지털 기술과 의료 서비스를 통합하여 개인 맞춤형 건강 관리 솔루션을 제공하는 것을 목표로 한다. 이 플랫폼은 웨어러블 디바이스, 모바일 애플리케이션, 클라우드 데이터베이스, 인공지능 알고리즘 등을 활용해 사용자의 건강 데이터를 실시간으로 수집, 분석하고 이를 바탕으로 맞춤형 건강 관리 방안을 제안한다. 스마트 헬스케어는 4차 산업혁명의 핵심 분야 중 하나로, 글로벌 헬스케어 시장은 2024년까지 약 12%의 연평균 성장률을 기록하며 500억 달러 규모에 이를 것으로 전망된다. 스마트 헬스케어 플랫폼의 주요 타겟층은 건강에 대한 관심이 높고 기술에 익숙한 30대에서 50대 중반의 소비자들이다. 특히 만성질환 관리가 필요한 환자, 라이프스타일 개선에 관심이 있는 일반 소비자, 그리고 피트니스와 웰니스 관련 목표를 가진 사용자가 주요 사용자층으로 정의된다. 이러한 타겟층의 75%는 이미 스마트 워치나 피트니스 밴드와 같은 웨어러블 디바이스를 활용하고 있으며, 이 데이터를 통합적으로 관리하고 분석해주는 플랫폼에 대한 요구가 높아지고 있다. 스마트 헬스케어 플랫폼은 크게 다음 세 가지 핵심 기능을 중심으로 설계된다. 첫째, 실시간 데이터 수집과 분석 기능이다. 웨어러블 디바이스를 통해 심박수, 수면 패턴, 혈압, 혈당 등의 데이터를 지속적으로 수집하고 이를 클라우드 기반 데이터베이스에 저장한다. 인공지능 알고리즘을 활용해 이 데이터를 분석함으로써 사용자의 건강 상태를 실시간으로 모니터링하고 이상 징후를 조기에 발견할 수 있다. 예를 들어, 심박수 변동과 수면 패턴의 변화를 분석해 스트레스 수준을 예측하거나, 특정 수치가 위험 수준에 도달했을 때 사용자가 즉시 알림을 받을 수 있도록 설계된다. 둘째, 개인 맞춤형 건강 관리 솔루션 제공 기능이다. AI와 머신러닝 알고리즘은 사용자의 건강 데이터를 분석해 개인화된 건강 목표와 추천 사항을 제안한다. 예를 들어, 만성질환이 있는 사용자는 약물 복용 시간 알림, 운동 추천, 식단 계획 등을 제공받을 수 있으며, 피트니스 목표를 가진 사용자는 개인의 운동 기록과 신체 데이터를 기반으로 운동 루틴을 제안받을 수 있다. 이러한 개인화된 솔루션은 사용자가 일상생활에서 더 나은 건강 습관을 형성하도록 돕는다. 셋째, 사용자와 의료 전문가를 연결하는 기능이다. 플랫폼은 사용자가 자신의 건강 데이터를 의료 전문가와 공유할 수 있는 기능을 제공하며, 이를 통해 더 정밀한 건강 상담과 진단이 가능하도록 한다. 예를 들어, 사용자가 주기적으로 기록한 혈압과 혈당 데이터를 기반으로 의사가 사용자의 상태를 원격으로 진단하고 필요한 경우 비대면 상담을 통해 처방이나 치료 계획을 제안할 수 있다. 이러한 연결은 특히 고령층이나 의료 접근성이 낮은 지역에서 매우 유용하다. 스마트 헬스케어 플랫폼의 성공적인 운영을 위해서는 몇 가지 중요한 요소가 필요하다. 첫째, 데이터 보안과 개인정보 보호를 위한 철저한 시스템 설계가 필요하다. 사용자의 건강 데이터는 민감한 정보이기 때문에, 이를 암호화하고 GDPR, HIPAA와 같은 규정을 준수하는 것이 필수적이다. 둘째, 플랫폼의 사용자 경험(UX)을 강화해야 한다. 사용자가 쉽게 데이터를 입력하고 분석 결과를 이해할 수 있도록 직관적인 인터페이스와 시각화 기능을 제공해야 한다. 셋째, 신뢰성 있는 파트너십 구축이 중요하다. 의료 기기 제조사, 병원, 보험사 등과 협력하여 플랫폼의 생태계를 확장하고 더 많은 가치를 제공해야 한다. 이 플랫폼은 의료비 절감, 의료 접근성 개선, 소비자의 건강 관리 능력 향상이라는 사회적 가치를 제공할 수 있다. 예를 들어, 만성질환 환자가 스마트 헬스케어 플랫폼을 통해 건강 상태를 효과적으로 관리하면 병원 방문 횟수를 줄이고, 결과적으로 연간 20% 이상의 의료비를 절감할 수 있다는 연구 결과가 있다. 또한, 도시와 농촌 지역 간의 의료 서비스 격차를 줄이는 데 기여할 수 있으며, 사용자의 건강 정보를 통합적으로 관리함으로써 예방적 건강 관리를 활성화할 수 있다. 스마트 헬스케어 플랫폼은 단순히 기술을 넘어 개인과 사회의 건강을 향상시키는 데 기여할 수 있는 중요한 도구로 자리 잡고 있다. 앞으로 이러한 플랫폼의 발전과 보급은 의료 산업뿐만 아니라 사회 전반에 걸쳐 긍정적인 변화를 가져올 것이다. IT 기획자로서 이러한 플랫폼의 설계와 운영을 통해 건강하고 지속 가능한 사회를 만들어가는 데 기여할 수 있을 것이다."
 # =====
 
-
-# koBART 모델
-model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
-tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
-model = BartForConditionalGeneration.from_pretrained(model_name)
-
-
-# chromaDB 클라이언트
-client = chromadb.PersistentClient(path="./chroma_db")
-collection = client.get_or_create_collection(name="table")
-
-
-router = APIRouter(
-    prefix="/api/reports",
-)
-
-
-# 실제로는 ChromaDB에서 가져와야 함 !!!
-class OriginDocId(BaseModel):
-    doc_ids: list[str] # ChromaDB의 문서 ID들
-
-
-@router.get("/")
-def test():
-    return {"message":"reports page is running"}
-
-
-# ChromaDB에서 문서 ID 기반으로 내용 가져오기
-# 일단 이 엔드포인트는 doc_id 잘 가져오는지 확인하기 위함... get_document 함수만 있으면 될듯?
-@router.get("/get_document/{doc_id}")
-async def get_document(doc_id: str):
-    # =====
-    # 일단 하드코딩으로 테스트 해보자
-    test_results = {
-        "2_1": synthetic_beauty,
-        "2_2": synthetic_health
-    }
-    
-    if doc_id in test_results:
-        return {
-            "id": doc_id,
-            "content": test_results[doc_id]
-        }
-    return {"error": "Document cannot be found"}
-    # =====
-
+async def process_query(agenda_items: List[Dict[str, str]], app: FastAPI=Depends()) -> List[Dict[str, str]]:
     """
-    # 실제로 ChromaDB랑 연결할 때 쓸 코드 !!!
-    results = collection.get(ids=[doc_id]) # doc_id: ChromaDB에 저장된 id / 예시) 2_1, 2_2
-    
-    if results["documents"]:
-        return {
-            "id": doc_id,
-            "content": results["documents"][0]
-        }
-    return {"error": "Document cannot be found"}
+    안건별로 요약을 수행하는 함수
+
+    Args:
+        app (FastAPI): FastAPI 애플리케이션 인스턴스
+        agenda_items (List[Dict[str, str]]): 안건 제목, 내용 리스트
+
+    Returns:
+        List[Dict[str, str]]: 안건별 요약된 응답
     """
-    
+    print("Agenda Items in process_query:", agenda_items)  # 여기서도 로그 찍어봄
 
-# 요약 하기 & 요약 내용 반환
-@router.post("/summary/")
-async def summarize_text(origin_doc: OriginDocId):
-    summaries = [] # 여러 개 문서 요약하기 위함 
+    summaries = []
+    # 요약 모델이 제대로 로드되었는지 확인
+    summary_model = load_summary_model()
 
-    # =====
-    # 일단 하드코딩으로 테스트 해보자
-    test_results = {
-        "2_1": synthetic_beauty,
-        "2_2": synthetic_health
-    }
-    # =====
+    tokenizer = summary_model["tokenizer"]
+    model = summary_model["model"]
 
-    for doc_id in origin_doc.doc_ids:
-        # =====
-        # 일단 하드코딩으로 테스트 해보자
-        if doc_id in test_results:
-            text = test_results[doc_id].replace('\n', ' ')
-            inputs = tokenizer(text, return_tensors='pt', max_length=512, truncation=True) # 일단은 512 토큰으로 자르기
-            with torch.no_grad():
-                summary_ids = model.generate(
-                    inputs["input_ids"],
-                    num_beams=4,
-                    max_length=150,
-                    early_stopping=True
-                )
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
-            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-    
-            summaries.append({
-                "id": doc_id,
-                "origin_content": text,
-                "summary": summary
-            })
-    
-        else:
-            raise HTTPException(status_code=404, detail=f"문서 ID {doc_id}를 찾을 수 없습니다.")
-        # =====
+    try:
+        for item in agenda_items:
+            agenda_title = item.get("agenda_title", "")
+            agenda_result = item.get("agenda_result", "")
 
-        """
-        results = collection.get(ids=[doc_id])
-        if results["documents"]:
-            text = results["documents"][0].replace('\n', ' ') # 줄바꿈 제거
-            inputs = tokenizer(text, return_tensors='pt', max_length=512, truncation=True) # 일단은 512 토큰으로 자르기 
+            if not agenda_result:
+                continue
+
+            # 토큰화 및 요약
+            inputs = tokenizer(agenda_result, return_tensors="pt", max_length=512, truncation=True)
+            inputs = {key: value.to(device) for key, value in inputs.items()}
 
             with torch.no_grad():
                 summary_ids = model.generate(
@@ -122,16 +57,14 @@ async def summarize_text(origin_doc: OriginDocId):
                 )
 
             summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-    
+
             summaries.append({
-                "id": doc_id,
-                "origin_content": text,
+                "agenda_title": agenda_title,
+                "original_content": agenda_result,
                 "summary": summary
             })
-    
-        else:
-            raise HTTPException(status_code=404, detail=f"문서 ID {doc_id}를 찾을 수 없습니다.")
-        """
 
-    return {"summaries": summaries}
+        return summaries
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"요약 과정 중 오류 발생: {str(e)}")
