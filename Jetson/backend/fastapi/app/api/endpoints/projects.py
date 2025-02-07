@@ -101,8 +101,6 @@ async def insert_project_document(document: Document, app: FastAPI = Depends()) 
     # 문서 정보 저장
     project_collection.insert_data([embedding_document])
 
-    # 문서 삽입
-    app.state.project_collection.insert_data(document)
     return {"result": True, "message": "문서 삽입 완료"}
 
 
@@ -118,5 +116,10 @@ async def delete_project_document(project_id: str, document_id: str, app: FastAP
     Returns:
         json: 문서 삭제 여부 및 메시지
     """
+    # 프로젝트 컬렉션 
+    project_collection = chromadb_utils.get_project_collection(project_id=project_id)
+    
     # 문서 삭제
-    app.state.project_collection.delete_data(document_id)
+    project_collection.delete_data(document_id)
+    
+    return {"result": True, "message": f"문서({document_id}) 삭제 완료"}
