@@ -1,17 +1,18 @@
 import requests
 import torch
-from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig
-from  sentence_transformers import SentenceTransformer, models
+from transformers import AutoTokenizer, AutoModel, BitsAndBytesConfig, PreTrainedTokenizerFast, BartForConditionalGeneration
+from sentence_transformers import SentenceTransformer, models
 import json
 import os 
 from dotenv import load_dotenv
 import logging
+from fastapi import Depends, FastAPI
 
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
  
-def load_stt_model(app):
+def load_stt_model(app: FastAPI=Depends()):
     """
     STT 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
     """
@@ -22,7 +23,7 @@ def load_stt_model(app):
         print(f"STT model loaded successfully!")
 
 
-def load_embedding_model(app):
+def load_embedding_model(app: FastAPI=Depends()):
     """
     Embedding 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
     """
@@ -60,7 +61,7 @@ def load_embedding_model(app):
         logging.info("Embedding model (KoE5) loaded successfully!")
 
 
-def load_llm_model(app):
+def load_llm_model(app: FastAPI=Depends()):
     """
     LLM을 로드하여 FastAPI의 상태 (app.state)에 저장 
     """
@@ -71,7 +72,28 @@ def load_llm_model(app):
         logging.info("LLM model loaded successfully!")
 
 
-def unload_models(app):
+def load_summary_model(app: FastAPI=Depends()):
+    """
+    Summary 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
+    """
+    if not hasattr(app.state, "summary_model"):
+        print(f"Loading summary model ...")
+
+        # 요약 모델 로딩
+        model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
+        model = BartForConditionalGeneration.from_pretrained(model_name)
+
+        # 모델과 토크나이저를 app.state에 저장
+        app.state.summary_model = {
+            'tokenizer': tokenizer,
+            'model': model
+        }
+
+        logging.info("Summary model loaded successfully!")
+
+
+def unload_models(app: FastAPI=Depends()):
     """
     FastAPI 상태(app.state)에서 모델을 제거하여 메모리 해제 
     """
@@ -86,5 +108,9 @@ def unload_models(app):
     if hasattr(app.state, "llm_model"):
         del app.state.llm_model
         print(f"LLM model unloaded!")
+    
+    if hasattr(app.state, "summary_model"):
+        del app.state.summary_model
+        print(f"Summary model unloaded!")
     
     print("All models unloaded successfully!!")
