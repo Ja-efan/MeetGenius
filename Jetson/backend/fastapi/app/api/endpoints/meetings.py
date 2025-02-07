@@ -182,11 +182,32 @@ async def next_agenda(meeting_id: str, agenda_info: dict, app: FastAPI = Depends
     # ...
     return {"result": True, "agenda_docs": []}  # 검색된 문서 목록 반환
 
+
 @router.post("/{meeting_id}/end")
-async def end_meeting(meeting_id: str, user_info: dict, app: FastAPI = Depends()):
-    # 회의 종료 로직
-    # ...
-    return {"result": True}
+async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends()):
+    try:
+        # 1. 백으로부터 종료 flag 받기
+        if end_request:
+            # 2. stt 종료 처리
+            if stt_running:
+                stt_running = False # 이 상태를 변수로 관리할지, app 상태로 관리할지 생각해보자 !!!
+
+                # 3. 모델 unload
+                llm_utils.unload_models(app)
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                gc.collect()
+
+            # 4. 종료 완료 flag 반환
+            return {"meeting_id": meeting_id, "result": True}
+        
+        else:
+            raise HTTPException(status_code=400, detail="회의 종료 요청 오류")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"회의 종료 중 오류 발생: {str(e)}")
 
 
 # 회의ID(meeting_id)에 따른 회의록 수정 페이지(edit_document)
