@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from core import rag, llm_utils, chromadb_utils
-from models import meetings, agendas
+from models.meetings import AgendaBase, AgendaList, PrepareMeetingOut, NextAgendaOut
 
 router = APIRouter(
     prefix="/api/v1/meetings",
@@ -39,52 +39,55 @@ trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
 
 
 @router.post("/{meeting_id}/prepare",status_code=status.HTTP_200_OK)
-async def prepare_meeting(meeting_id: str, meeting_info: json, app: FastAPI = Depends()) -> json:
-    """회의 준비(회의 참가) 엔드포인트 
+async def prepare_meeting(meeting_info: AgendaList, meeting_id: str, app: FastAPI = Depends()):
+    """_summary_
 
-        - 회의 참가 버튼 클릭 시 호출 
-        - 회의 정보 수신 
-        - 회의 정보 저장 (?)
-        - 프로젝트 관련 collection 생성
-        - STT, Emb, RAG 모델 메모리 로드 
-        - chromadb 및 모델 로드 완료 시 회의 준비 완료 처리 
-    
     Args:
-        meeting_id (str): 회의 id
-        meeting_info (json): 회의 정보
-            {
-                "user_id": str,
-                "project_id": str,
-                "meeting_name": str,
-                "meeting_date": str,
-                "meeting_type": str,
-            }
+        meeting_info (AgendaList): _description_
+        meeting_id (str): _description_
+        app (FastAPI, optional): _description_. Defaults to Depends().
+
+    Raises:
+        HTTPException: _description_
+        he: _description_
+        HTTPException: _description_
 
     Returns:
-        json: 회의 준비 완료 여부 및 메시지 
+        _type_: _description_
     """
-    
-    # 프로젝트 관련 collection 생성 및 app.state에 저장
-    app.state.project_collection = chromadb_utils.get_project_collection(app=app,
-                                                                        project_id=meeting_info["project_id"])
-    
-    # STT, Emb, RAG 모델 메모리 로드 
-    app.state.stt_model = llm_utils.load_stt_model(app=app)
-    app.state.embedding_model = llm_utils.load_embedding_model(app=app) 
-    app.state.rag_model = llm_utils.load_rag_model(app=app)
+    try:
+        # 필수 키 존재 여부 확인 
+        if "project_id" not in meeting_info:
+            msg = "Missing 'project_id' in meeting_info"
+            logger.error(msg)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
 
-    # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리 
-    app.state.is_meeting_ready = True
+        # 프로젝트 관련 collection 생성 및 app.state에 저장
+        app.state.project_collection = chromadb_utils.get_project_collection(app=app,
+                                                                        project_id=meeting_info["project_id"])  
+        
+        # STT, Emb, RAG 모델 메모리 로드 
+        app.state.stt_model = llm_utils.load_stt_model(app=app)
+        app.state.embedding_model = llm_utils.load_embedding_model(app=app) 
+        app.state.rag_model = llm_utils.load_rag_model(app=app)
+        
+        # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리 
+        app.state.is_meeting_ready = True
 
-    return {
-        "status_code": status.HTTP_200_OK, 
-        "result": app.state.is_meeting_ready, 
-        "message": "회의 준비 완료"
-        }
+        logger.info(f"Meeting {meeting_id} preparation completed.")
+        return PrepareMeetingOut("result":True, "message": "회의 준비 완료")
+    
+    except HTTPException as he:
+        raise he
+        
+    except Exception as e:
+        logger.exception(f"Exception occured in prepare_meeting.\n{str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                            detail=f"회의 준비 중 오류가 발생했습니다.")
 
 
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
-async def next_agenda(agenda: agendas.AgendaBase, app: FastAPI = Depends()):
+async def next_agenda(agenda: AgendaBase, app: FastAPI = Depends()):
     """회의 시작 / 다음 안건 엔드포인트
 
     Args:
