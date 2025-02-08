@@ -18,3 +18,9 @@ class PrepareMeetingOut(BaseModel):
     """회의 준비 완료 모델"""
     result: bool = Field(..., description="결과")
     message: str = Field(..., description="메시지")
+
+
+class NextAgendaOut(BaseModel):
+    """다음 안건 모델"""
+    stt_running: bool = Field(..., description="STT 실행 상태")
+    agenda_docs: list = Field(..., description="안건과 유사한 문서 id 목록")
