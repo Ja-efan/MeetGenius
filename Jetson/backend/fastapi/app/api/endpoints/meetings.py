@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 import json
 import logging
-from core import rag, llm_utils, chromadb_utils
+from core import rag, llm_utils, chromadb_utils 
 from models.meetings import AgendaBase, AgendaList, PrepareMeetingOut, NextAgendaOut
 
 router = APIRouter(
@@ -127,7 +127,7 @@ async def next_agenda(agenda: AgendaBase, app: FastAPI = Depends()):
             docs = agenda_docs.get(agenda.agenda_id, [])  # 없으면 빈 리스트 반환 (KeyError 방지)
 
             logger.info(f"Start STT for meeting agenda '{agenda.agenda_id}'")  # STT 시작 로그 출력 
-            return {"stt_running": True, "agenda_docs": docs}
+            return NextAgendaOut(stt_running=True, agenda_docs=docs)
         
         # <다음 안건 / 안건 추가> : STT가 실행 중인 경우 
         else :
@@ -135,7 +135,7 @@ async def next_agenda(agenda: AgendaBase, app: FastAPI = Depends()):
             # <다음 안건> : 기존 안건인 경우 (agenda_docs에 안건 id가 존재하는 경우)
             if docs:
                 logger.info(f"Return existing agenda docs for agenda '{agenda.agenda_id}'")  # 기존 안건 로그 출력 
-                return {"stt_running": True, "agenda_docs": docs}
+                return NextAgendaOut(stt_running=True, agenda_docs=docs)
             
             # <안건 추가> : 신규 안건인 경우 (agenda_docs에 안건 id가 존재하지 않는 경우)
             else: 
@@ -143,7 +143,7 @@ async def next_agenda(agenda: AgendaBase, app: FastAPI = Depends()):
                 collection = app.state.project_collection  # 프로젝트 컬렉션 
                 docs = collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
                 logger.info(f"New agenda processed: '{agenda.agenda_id}'")  # 신규 안건 처리 완료 로그 출력 
-                return {"stt_running": True, "agenda_docs": docs}
+                return NextAgendaOut(stt_running=True, agenda_docs=docs)
                 
             
     except Exception as e:
