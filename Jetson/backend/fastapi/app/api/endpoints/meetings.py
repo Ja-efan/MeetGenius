@@ -33,8 +33,6 @@ logger.addHandler(handler)  # 로거에 핸들러 추가
 ###########################################################################################################################    
 
 
-
-
 stt_running = False # STT 실행 상태 ( 백그라운드 실행 )
 
 trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거 
@@ -87,35 +85,25 @@ async def prepare_meeting(meeting_id: str, meeting_info: json, app: FastAPI = De
 
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
 async def next_agenda(agenda: agendas.AgendaBase, app: FastAPI = Depends()):
-    """
-        회의 시작 / 다음 안건 엔드포인트
-        
-        1. 함수 호출 
-        2. 현재 stt 상태 확인 
-        2.1 stt 실행 중이 아닌 경우 
-            2.1.1 stt 시작 
-            2.1.2 app 상태에 저장된 agenda_docs 반환
-        
-        2.2 stt 실행 중인 경우 
-            2.2.1 회의 정보에 안건 id가 존재하는 경우 (사전 작성된 안건인 경우)
-                2.2.1.1 app 상태에 저장된 agenda_docs 반환
-            2.2.2 회의 정보에 안건 id가 존재하지 않는 경우 (추가 안건인 경우)
-                2.2.2.1 안건 임베딩
-                2.2.2.2 안건과 유사한 문서 검색
-                2.2.2.3 app 상태에 agenda_docs 저장
-                2.2.2.4 app 상태에 저장된 agenda_docs 반환
-                
-        body:
-        {
-            "agenda_id": str,
-            "agenda_title": str
-        }
+    """회의 시작 / 다음 안건 엔드포인트
 
-        response:
-        {
-            "result": bool,
-            "agenda_docs": list[str]
-        }
+    Args:
+        agenda (agendas.AgendaBase): 안건 정보
+            {
+                "agenda_id": str,
+                "agenda_title": str
+            }
+        app (FastAPI, optional): 앱 상태. Defaults to Depends().
+
+    Raises:
+        HTTPException: 예외 발생 시 예외 처리 
+
+    Returns:
+        json: 회의 시작 / 다음 안건 엔드포인트 응답 
+            {
+                "stt_running": bool,
+                "agenda_docs": list[str]
+            }
     """
     try:
         # 필요한 상태 값이 없으면 초기화 
@@ -150,7 +138,7 @@ async def next_agenda(agenda: agendas.AgendaBase, app: FastAPI = Depends()):
             else: 
                 new_agenda_title = agenda.agenda_title  # 신규 안건 제목    
                 collection = app.state.project_collection  # 프로젝트 컬렉션 
-                docs = collection.search_documents_by_agenda(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
+                docs = collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
                 logger.info(f"New agenda processed: '{agenda.agenda_id}'")  # 신규 안건 처리 완료 로그 출력 
                 return {"stt_running": True, "agenda_docs": docs}
                 
