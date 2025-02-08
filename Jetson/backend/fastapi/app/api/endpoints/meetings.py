@@ -40,20 +40,18 @@ trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
 
 @router.post("/{meeting_id}/prepare",status_code=status.HTTP_200_OK)
 async def prepare_meeting(meeting_info: AgendaList, meeting_id: str, app: FastAPI = Depends()):
-    """_summary_
+    """회의 준비 엔드포인트
 
     Args:
-        meeting_info (AgendaList): _description_
-        meeting_id (str): _description_
-        app (FastAPI, optional): _description_. Defaults to Depends().
+        meeting_info (AgendaList): 회의 정보
+        meeting_id (str): 회의 id
+        app (FastAPI, optional): 앱 상태. Defaults to Depends().
 
     Raises:
-        HTTPException: _description_
-        he: _description_
-        HTTPException: _description_
+        HTTPException: 예외 발생 시 예외 처리 
 
     Returns:
-        _type_: _description_
+        PrepareMeetingOut: 회의 준비 완료 모델
     """
     try:
         # 필수 키 존재 여부 확인 
@@ -92,21 +90,13 @@ async def next_agenda(agenda: AgendaBase, app: FastAPI = Depends()):
 
     Args:
         agenda (agendas.AgendaBase): 안건 정보
-            {
-                "agenda_id": str,
-                "agenda_title": str
-            }
         app (FastAPI, optional): 앱 상태. Defaults to Depends().
 
     Raises:
         HTTPException: 예외 발생 시 예외 처리 
 
     Returns:
-        json: 회의 시작 / 다음 안건 엔드포인트 응답 
-            {
-                "stt_running": bool,
-                "agenda_docs": list[str]
-            }
+        NextAgendaOut: 회의 시작 / 다음 안건 엔드포인트 응답 
     """
     try:
         # 필요한 상태 값이 없으면 초기화 
