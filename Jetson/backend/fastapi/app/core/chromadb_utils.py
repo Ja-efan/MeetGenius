@@ -81,7 +81,7 @@ class ChromaCollection:
         """컬렉션 삭제"""
         self.client.delete_collection(self.collection.name)
 
-    def search_documents_by_agenda(self, agenda: str, top_k: int = 3):
+    def get_agenda_docs(self, agenda: str, top_k: int = 3):
         """안건명(agenda)과 유사한 문서 검색"""
         # 임베딩 모델 
         model = self.app.state.embedding_model
@@ -96,7 +96,10 @@ class ChromaCollection:
         # 안건명과 유사한 문서 검색
         results = collection.query(query_embeddings=agenda_embedding, n_results=top_k)
         
-        return results
+        # 문서 id 반환 
+        doc_ids = results["ids"][0]
+        
+        return doc_ids
         
 # FastAPI와 연동하는 Dependency Injection 함수
 def get_project_collection(project_id: str, app: FastAPI = Depends()) -> ChromaCollection:
