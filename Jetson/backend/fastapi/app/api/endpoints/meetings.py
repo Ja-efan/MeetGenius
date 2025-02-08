@@ -75,8 +75,8 @@ async def prepare_meeting(meeting_info: AgendaList, meeting_id: str, app: FastAP
         app.state.is_meeting_ready = True
 
         logger.info(f"Meeting {meeting_id} preparation completed.")
-        return PrepareMeetingOut("result":True, "message": "회의 준비 완료")
-    
+        return PrepareMeetingOut(result=True, message="회의 준비 완료")
+
     except HTTPException as he:
         raise he
         
