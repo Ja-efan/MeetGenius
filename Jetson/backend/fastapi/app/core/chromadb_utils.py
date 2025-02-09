@@ -14,17 +14,18 @@ load_dotenv()
 class ChromaCollection:
     """ChromaDB Collection 관리 클래스"""
 
-    def __init__(self, collection_name: str):
+    def __init__(self, collection_name: str, app_state: FastAPI.state):
         """ChromaCollection 생성자
 
         Args:
             collection_name (str): 사용할 ChromaDB 컬렉션 이름
+            app (FastAPI): FastAPI 인스턴스
         """
         self.collection_name = collection_name
         self.client = self._get_chroma_client()
 
         self.collection = self.client.get_or_create_collection(name=collection_name)
-
+        self.app_state = app_state
 
     def _get_chroma_client(self):
         """운영 체제에 따라 적절한 ChromaDB 클라이언트를 선택"""
@@ -41,12 +42,6 @@ class ChromaCollection:
 
     def insert_data(self, data: List[EmbeddingDocument]) -> None:
         """데이터(문서)를 ChromaDB 컬렉션에 삽입"""
-        # for doc in data:
-        #     self.collection.add(
-        #         ids=[doc["id"]],
-        #         metadatas=[doc.get("metadata", {})],
-        #         documents=[doc["text"]],
-        #     )
 
         for embedding_document in data:
             self.collection.add(
@@ -86,12 +81,31 @@ class ChromaCollection:
         """컬렉션 삭제"""
         self.client.delete_collection(self.collection.name)
 
-
+    def get_agenda_docs(self, agenda: str, top_k: int = 3):
+        """안건명(agenda)과 유사한 문서 검색"""
+        # 임베딩 모델 
+        model = self.app_state.state.embedding_model
+        # 안건명 포맷팅 (KoE5 모델 사용)
+        formatted_agenda = [f"query: {agenda}"]
+        # 임베딩 임베딩 결과 
+        agenda_embedding = model.encode(formatted_agenda)
+        
+        # collection
+        collection = self.collection
+        
+        # 안건명과 유사한 문서 검색
+        results = collection.query(query_embeddings=agenda_embedding, n_results=top_k)
+        
+        # 문서 id 반환 
+        doc_ids = results["ids"][0]
+        
+        return doc_ids
+        
 # FastAPI와 연동하는 Dependency Injection 함수
-def get_project_collection(project_id: str, app: FastAPI = Depends()) -> ChromaCollection:
+def get_project_collection(project_id: str, app_state: FastAPI.state) -> ChromaCollection:
     """FastAPI에서 ChromaDB Collection을 관리하도록 하는 함수
     
-    - 프로젝트 관련 collection 생성 및 app.state에 저장
+    - 프로젝트 관련 collection 생성 및 app_state에 저장
     Args:
         app (FastAPI): FastAPI 인스턴스
         collection_name (str): 사용할 ChromaDB 컬렉션 이름
@@ -104,11 +118,11 @@ def get_project_collection(project_id: str, app: FastAPI = Depends()) -> ChromaC
     # chromadb_collections[collection_name]: 프로젝트 관련 collection 인스턴스
 
     # 초기화 되지 않았다면 초기화
-    if not hasattr(app.state, "chromadb_collections"): 
-        app.state.chromadb_collections = {}
+    if not hasattr(app_state, "chromadb_collections"): 
+        app_state.chromadb_collections = {}
 
     # project_id 컬렉션이 초기화 되지 않았다면 초기화
-    if project_id not in app.state.chromadb_collections:
-        app.state.chromadb_collections[project_id] = ChromaCollection(collection_name=project_id)
+    if project_id not in app_state.chromadb_collections:
+        app_state.chromadb_collections[project_id] = ChromaCollection(collection_name=project_id)
 
-    return app.state.chromadb_collections[project_id]  # 프로젝트 관련 collection 인스턴스 반환
+    return app_state.chromadb_collections[project_id]  # 프로젝트 관련 collection 인스턴스 반환
