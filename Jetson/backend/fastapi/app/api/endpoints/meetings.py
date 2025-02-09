@@ -2,20 +2,17 @@
 회의 관련 엔드포인트
 """
 
-from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends
-import httpx 
-import os 
-from dotenv import load_dotenv
+import os
 import gc
 import torch 
 import json 
 
+from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends
 from core import rag, llm_utils, chromadb_utils, summary
 from models.agendas import AgendaData, AgendaItem
-
+from dotenv import load_dotenv
 
 load_dotenv()
-
 
 DJANGO_URL = os.getenv('DJANGO_URL') # 장고 url 
 STT_MODEL = os.getenv('STT_MODEL')
@@ -26,7 +23,14 @@ router = APIRouter(
     prefix="/api/v1/meetings",
 )
 
-stt_running = False # STT 실행 상태 ( 백그라운드 실행 )
+# stt_running = False # STT 실행 상태 ( 백그라운드 실행 )
+def is_stt_running(app: FastAPI):
+    """STT 실행 상태 확인"""
+    return getattr(app.state, "stt_running", False)
+
+def set_stt_running(app: FastAPI, status: bool):
+    """STT 실행 상태 설정"""
+    app.state.stt_running = status
 
 trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거 
 
@@ -169,12 +173,14 @@ async def prepare_meeting(meeting_id: str, meeting_info: json, app: FastAPI = De
 
     return {"result": app.state.is_meeting_ready, "message": "회의 준비 완료"}
 
+
 @router.post("/{meeting_id}/start")
 async def start_meeting(meeting_id: str, agenda_info: dict, app: FastAPI = Depends()):
     # 회의 시작 로직
     # 첫 안건 수신 및 안건 관련 문서 검색
     # ...
     return {"result": True, "agenda_docs": []}  # 검색된 문서 목록 반환
+
 
 @router.post("/{meeting_id}/next-agenda")
 async def next_agenda(meeting_id: str, agenda_info: dict, app: FastAPI = Depends()):
@@ -189,8 +195,8 @@ async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends
         # 1. 백으로부터 종료 flag 받기
         if end_request:
             # 2. stt 종료 처리
-            if stt_running:
-                stt_running = False # 이 상태를 변수로 관리할지, app 상태로 관리할지 생각해보자 !!!
+            if is_stt_running(app): # stt가 실행중이라면
+                set_stt_running(app, False) # stt 중지하기
 
                 # 3. 모델 unload
                 llm_utils.unload_models(app)
