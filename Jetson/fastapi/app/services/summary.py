@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends
 import torch
 from app.utils.llm_utils import load_summary_model
 from typing import Any
+from app.schemes.meetings import AgendaSummary
 
 # =====
 # swagger ui로 테스트할 텍스트
@@ -58,12 +59,13 @@ async def process_query(agenda_items: List[Dict[str, str]], app_state: Any) -> L
                 )
 
             summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+  
+            summaries.append(AgendaSummary(
+                agenda_title=agenda_title,
+                original_content=agenda_result,
+                summary=summary
+            ))
 
-            summaries.append({
-                "agenda_title": agenda_title,
-                "original_content": agenda_result,
-                "summary": summary
-            })
 
         return summaries
 
