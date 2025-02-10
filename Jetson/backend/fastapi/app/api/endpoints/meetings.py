@@ -198,19 +198,22 @@ async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends
             if is_stt_running(app): # stt가 실행중이라면
                 set_stt_running(app, False) # stt 중지하기
 
-                # 3. 모델 unload
-                llm_utils.unload_models(app)
+            # 3. 관련 상태 unload
+            llm_utils.unload_models(app)
+            
+            if hasattr(app.state, "project_collection"):
+                del app.state.project_collection
+            
+            if hasattr(app.state, "is_meeting_ready"):
+                del app.state.is_meeting_ready
 
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                gc.collect()
+            # GPU 메모리 비우기 및 가비지 컬렉션
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            gc.collect()
 
-            # 4. 종료 완료 flag 반환
             return {"meeting_id": meeting_id, "result": True}
-        
-        else:
-            raise HTTPException(status_code=400, detail="회의 종료 요청 오류")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"회의 종료 중 오류 발생: {str(e)}")
