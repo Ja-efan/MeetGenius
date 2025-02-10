@@ -13,15 +13,15 @@ from typing import Any
 
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
 from core import rag, llm_utils, chromadb_utils, summary
-from schemes.agendas import AgendaData, AgendaItem
-from schemes.meetings import Message, AgendaBase, AgendaList, PrepareMeetingOut, NextAgendaOut
-from app.dependencies import get_app_state, get_app
+# 새로 정의한 스키마 적용 (schemes.meetings 모듈에 새 스키마들을 정의했다고 가정)
+from schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails
+from schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
+from app.dependencies import get_app_state
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
-DJANGO_URL = os.getenv('DJANGO_URL') # 장고 url 
+DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 url 
 STT_MODEL = os.getenv('STT_MODEL')
 EMB_MODEL = os.getenv('EMB_MODEL')
 RAG_MODEL = os.getenv('RAG_MODEL')
@@ -30,7 +30,6 @@ router = APIRouter(
     prefix="/api/v1/meetings",
 )
 
-# stt_running = False # STT 실행 상태 ( 백그라운드 실행 )
 def is_stt_running(app: FastAPI):
     """STT 실행 상태 확인"""
     return getattr(app.state, "stt_running", False)
@@ -39,258 +38,225 @@ def set_stt_running(app: FastAPI, status: bool):
     """STT 실행 상태 설정"""
     app.state.stt_running = status
 
-trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거 
-
-
-DJANGO_URL = os.getenv('DJANGO_URL') # 장고 url 
-
-######################################################### 로깅 설정 #########################################################
-logger = logging.getLogger(__name__)  # 현재 모듈에 대한 로거 인스턴스 생성 
-logger.setLevel(logging.INFO)  # 로그 레벨 설정 
-handler = logging.StreamHandler()  # 콘솔에 로그 출력 
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')  # 로그 형식 설정 
-handler.setFormatter(formatter)  # 형식 설정 적용 
-logger.addHandler(handler)  # 로거에 핸들러 추가 
-###########################################################################################################################    
-
-
 trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
 
-async def send_message(message: Message):
+######################################################### 로깅 설정 #########################################################
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+###########################################################################################################################
+
+async def send_message(message: STTMessage):
     """Jetson Orin Nano(FastAPI) -> Web(Django) 메시지 전송 함수
 
     Args:
-        message (Message): 메시지 모델
-
+        message (STTMessage): 메시지 모델
 
     Raises:
         HTTPException: 예외 발생 시 예외 처리 
     """
     async with httpx.AsyncClient() as client:
-
         try:
             response = await client.post(f"{DJANGO_URL}", json=message.model_dump())
             logger.info(f"Message sent to Django: {message}")
             logger.info(f"Response: {response.json()}")
         except Exception as e:
             logger.exception(f"Exception occured in send_message.\n{str(e)}")
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                detail=f"메시지 전송 중 오류가 발생했습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="메시지 전송 중 오류가 발생했습니다."
+            )
 
 async def stt_task(app_state):
     """STT 백그라운드 작업"""
-
-    # 마이크 선언 코드 
-    
-    # 자주 호출되는 백그라운드 작업의 경우 직접적인 속성 접근이 효율적
     while app_state.stt_running:
-        """
-            mic를 통해 듣고(읽고), STT 진행 및 회의 도중 RAG 
-        """
-        print(f"STT is runnign ... (waiting for audio input)")
+        # 실제 음성인식 로직 부분 (예시)
+        print("STT is running ... (waiting for audio input)")
+        transcript = "음성인식 테스트 중 입니다."  # 실제 로직 적용 필요
 
-        transcript = "음성인식 테스트 중 입니다."  # 실제 음성인식 로직 
-
-        # 트리거 키워드 확인 
+        # 트리거 키워드 확인
         if any(keyword in transcript for keyword in trigger_keywords):
             logger.info(f"Trigger keyword detected: {transcript}")
-            
-            # 사용자 질문 전송 
-            await send_message(Message(type="query", content=transcript))
-            
-            # RAG 질문 응답 
-            answer = await rag.process_query(app_state=app_state, query=transcript)
-            message = Message(type="answer", content=answer)
-            # 응답 전송 
+            # 사용자 질문 전송
+            message = STTMessage(type="query", content=transcript)
+            logger.info(f"Message sent to Django: {message}")
             await send_message(message)
-
-        # 트리거 키워드 확인 안된 경우 
+            # RAG 질문 응답
+            answer = await rag.process_query(app_state=app_state, query=transcript)
+            message = STTMessage(type="rag", content=answer)
+            await send_message(message)
         else:
             logger.info(f"No trigger keyword detected: {transcript}")
-            message = Message(type="plain", content=transcript)
+            message = STTMessage(type="plain", content=transcript)
             logger.info(f"Message sent to Django: {message}")
             await send_message(message)
 
         await asyncio.sleep(10)
 
-
-@router.post("/{meeting_id}/prepare",status_code=status.HTTP_200_OK)
-async def prepare_meeting(meeting_info: AgendaList, meeting_id: str, 
-                          background_tasks: BackgroundTasks, app_state: Any = Depends(get_app_state)):
+@router.post("/{meeting_id}/prepare", status_code=status.HTTP_200_OK)
+async def prepare_meeting(
+    meeting_info: MeetingAgendas, 
+    meeting_id: str, 
+    background_tasks: BackgroundTasks, 
+    app_state: Any = Depends(get_app_state)
+):
     """회의 준비 엔드포인트
 
     Args:
-        meeting_info (AgendaList): 회의 정보
-        meeting_id (str): 회의 id
-        app (FastAPI, optional): 앱 상태. Defaults to Depends().
-
-    Raises:
-        HTTPException: 예외 발생 시 예외 처리 
+        meeting_info (MeetingAgendas): 회의 정보 (프로젝트 ID 및 안건 목록)
+        meeting_id (str): 회의 ID
+        background_tasks (BackgroundTasks): 백그라운드 작업 관리 객체
+        app_state (Any): 앱 상태
 
     Returns:
-        PrepareMeetingOut: 회의 준비 완료 모델
+        PrepareMeetingResponse: 회의 준비 완료 모델
     """
     try:
-        # 필수 키 존재 여부 확인 
-        if "project_id" not in meeting_info:
+        # 필수 키 존재 여부 확인
+        if not meeting_info.project_id:
             msg = "Missing 'project_id' in meeting_info"
             logger.error(msg)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
 
-        # 프로젝트 관련 collection 생성 및 app.state에 저장
-        app_state.project_collection = chromadb_utils.get_project_collection(project_id=meeting_info["project_id"],
-                                                                              app_state=app_state)  
+        # 프로젝트 관련 collection 생성 및 app_state에 저장
+        app_state.project_collection = chromadb_utils.get_project_collection(
+            project_id=meeting_info.project_id,
+            app_state=app_state
+        )
         
         app_state.stt_running = llm_utils.load_stt_model(app_state=app_state)
         app_state.embedding_model = llm_utils.load_embedding_model(app_state=app_state)
         app_state.rag_model = llm_utils.load_rag_model(app_state=app_state)
         
-
-        # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리 
-        app_state.is_meeting_ready = True   
-
-        app_state.stt_running = True # STT 실행 상태 업데이트 
+        # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
+        app_state.is_meeting_ready = True
+        app_state.stt_running = True  # STT 실행 상태 업데이트
         
-        # 안건 관련 문서 상태 초기화 
+        # 안건 관련 문서 상태 초기화 및 저장
         app_state.agenda_docs = {}
-        
-        # 안건 별 관련 문서 저장 -> app_state.agenda_docs[agenda_id] = [문서1_ID, 문서2_ID, 문서3_ID]
-        app_state.agenda_list = meeting_info.agenda_list
-        for agenda in app_state.agenda_list:
-            app_state.agenda_docs[agenda.agenda_id] = app_state.project_collection.get_agenda_docs(agenda=agenda.agenda_title, top_k=3)
+        # meeting_info.agendas 로 변경 (기존 agenda_list → agendas)
+        app_state.agenda_list = meeting_info.agendas
+        for agenda in meeting_info.agendas:
+            # 각 안건의 식별자와 제목은 각각 agenda.id, agenda.title 로 접근
+            app_state.agenda_docs[agenda.id] = app_state.project_collection.get_agenda_docs(
+                agenda=agenda.title, top_k=3
+            )
 
-
-        # 백그라운드 작업 시작 
-        background_tasks.add_task(stt_task, app_state=app_state) 
+        # 백그라운드 작업 시작
+        background_tasks.add_task(stt_task, app_state=app_state)
 
         logger.info(f"Meeting {meeting_id} preparation completed.")
         logger.info(f"Agenda docs: {app_state.agenda_docs}")
         
-        return PrepareMeetingOut(result=app_state.is_meeting_ready, message="회의 준비 완료")
+        return PrepareMeetingResponse(result=app_state.is_meeting_ready, message="회의 준비 완료")
 
     except HTTPException as he:
         raise he
-        
     except Exception as e:
         logger.exception(f"Exception occured in prepare_meeting.\n{str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                            detail=f"회의 준비 중 오류가 발생했습니다.")
-
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="회의 준비 중 오류가 발생했습니다."
+        )
 
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
-async def next_agenda(agenda: AgendaBase, app_state: Any = Depends(get_app_state)):
+async def next_agenda(agenda: Agenda, app_state: Any = Depends(get_app_state)):
     """회의 시작 / 다음 안건 엔드포인트
 
-
     Args:
-        agenda (agendas.AgendaBase): 안건 정보
-        app (FastAPI, optional): 앱 상태. Defaults to Depends().
-
-    Raises:
-        HTTPException: 예외 발생 시 예외 처리 
+        agenda (Agenda): 안건 정보
+        app_state (Any): 앱 상태
 
     Returns:
-        NextAgendaOut: 회의 시작 / 다음 안건 엔드포인트 응답 
+        NextAgendaResponse: 회의 시작 또는 다음 안건 응답
     """
     try:
-        # 필요한 상태 값이 없으면 초기화 
+        # 필요한 상태 값 초기화
         if not hasattr(app_state, "stt_running"):
-            app_state.stt_running = False  # STT 실행 상태 초기화 
+            app_state.stt_running = False
         if not hasattr(app_state, "agenda_docs"):
-            app_state.agenda_docs = {}  # 안건 문서 저장 초기화 
+            app_state.agenda_docs = {}
 
-        
         agenda_docs = app_state.agenda_docs
 
-        # <회의 시작> : STT가 아직 실행되지 않은 경우 
+        # <회의 시작>: STT가 아직 실행되지 않은 경우
         if not app_state.stt_running:
-            # STT 시작 
             app_state.stt_running = True
-            
-            # 현재 안건 id 에 해당하는 관련 문서 반환 
-            docs = agenda_docs.get(agenda.agenda_id, [])  # 없으면 빈 리스트 반환 (KeyError 방지)
-
-            logger.info(f"Start STT for meeting agenda '{agenda.agenda_id}'")  # STT 시작 로그 출력 
-            return NextAgendaOut(stt_running=app_state.stt_running, agenda_docs=docs)
-        
-        # <다음 안건 / 안건 추가> : STT가 실행 중인 경우 
-        else :
-            docs = agenda_docs.get(agenda.agenda_id, [])
-            # <다음 안건> : 기존 안건인 경우 (agenda_docs에 안건 id가 존재하는 경우)
+            # 현재 안건 id에 해당하는 관련 문서 반환
+            docs = agenda_docs.get(agenda.id, [])
+            logger.info(f"Start STT for meeting agenda '{agenda.id}'")
+            return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
+        else:
+            docs = agenda_docs.get(agenda.id, [])
+            # <다음 안건>: 기존 안건인 경우
             if docs:
-                logger.info(f"Return existing agenda docs for agenda '{agenda.agenda_id}'")  # 기존 안건 로그 출력 
-                return NextAgendaOut(stt_running=app_state.stt_running, agenda_docs=docs)
-            
-            # <안건 추가> : 신규 안건인 경우 (agenda_docs에 안건 id가 존재하지 않는 경우)
-            else: 
-                new_agenda_title = agenda.agenda_title  # 신규 안건 제목    
-                # collection = app_state.project_collection  # 프로젝트 컬렉션 
-                docs = app_state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
-                # docs = []
-                logger.info(f"New agenda processed: '{agenda.agenda_id}'")  # 신규 안건 처리 완료 로그 출력 
+                logger.info(f"Return existing agenda docs for agenda '{agenda.id}'")
+                return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
+            # <안건 추가>: 신규 안건인 경우
+            else:
+                new_agenda_title = agenda.title  # 신규 안건 제목
+                docs = app_state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)
+                logger.info(f"New agenda processed: '{agenda.id}'")
+                return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
 
-                return NextAgendaOut(stt_running=app_state.stt_running, agenda_docs=docs)
-                
-            
     except Exception as e:
         logger.exception(f"Exception occured in next_agenda.\n{str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                            detail=f"다음 안건 처리 중 오류가 발생했습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="다음 안건 처리 중 오류가 발생했습니다."
+        )
 
-
-@router.post("/{meeting_id}/end")
-async def end_meeting(meeting_id: int, end_request: bool, app_state: Any = Depends(get_app_state)):
+@router.post("/{meeting_id}/end", status_code=status.HTTP_200_OK)
+async def end_meeting(meeting_id: int, app_state: Any = Depends(get_app_state)):
     try:
-        # 1. 백으로부터 종료 flag 받기
-        if end_request:
+        # STT 종료 처리
+        if is_stt_running(app_state):
+            set_stt_running(app_state, False)
 
-            # 2. stt 종료 처리
-            if is_stt_running(app_state): # stt가 실행중이라면  # app.state.stt_running:
-                set_stt_running(app_state, False) # stt 중지하기
-
-
-            # 3. 관련 상태 unload
+            # 관련 모델 언로드
             llm_utils.unload_models(app_state)
-            
             if hasattr(app_state, "project_collection"):
                 del app_state.project_collection
-            
-
             if hasattr(app_state, "is_meeting_ready"):
                 del app_state.is_meeting_ready
 
-
-            # GPU 메모리 비우기 및 가비지 컬렉션
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            
             gc.collect()
 
-            return {"meeting_id": meeting_id, "result": True}
+            return EndMeetingResponse(meeting_id=meeting_id, stt_running=False)
+    
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"회의 종료 중 오류 발생: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"회의 종료 중 오류 발생: {str(e)}"
+        )
 
-
-# 회의ID(meeting_id)에 따른 회의록 수정 페이지(edit_document)
-# 요약이 안건별로 되어야 하는데, 어떻게 안건별로 나눔..?
-# 웹에서 가져올 때 안건 제목(agenda_title) + 안건 내용(agenda_result) 같이 가져오기.
-# 안건 제목 인식될 때마다 하나의 안건이라는 뜻 => 이걸로 안건별로 나누어 요약해서 보내면 될듯?
-# [정리] 요약 실행 -> 안건 제목 + 내용 가져오기 -> 내용만 가지고 요약 -> 보낼 때는 그 제목이랑 요약 결과 보내기
-@router.post("/{meeting_id}/summary")
-async def summarize_meetings(meeting_id: int, item: AgendaData, app_state: Any = Depends(get_app_state))-> dict | HTTPException:
+@router.post("/{meeting_id}/summary", status_code=status.HTTP_200_OK)
+async def summarize_meetings(
+    meeting_id: int, 
+    item: MeetingAgendaDetails, 
+    app_state: Any = Depends(get_app_state)
+):
     """회의록 요약 함수
 
     Args:
         meeting_id (int): 회의 ID
-        item (AgendaData): [안건 제목, 요약 내용]
+        item (MeetingAgendaDetails): 안건 및 안건 상세 내용 (각 안건의 제목과 내용)
+        app_state (Any): 앱 상태
 
     Returns:
-        dict | HTTPException: 회의 ID, [안건 제목, 요약 내용] 반환 및 예외 처리
+        SummaryResponse: 안건별 요약 내용 반환
     """
-    if item.items:
-        agenda_items = [agenda.model_dump() for agenda in item.items]
+    if item.agendas:
+        # 각 안건 정보를 dict로 변환하여 요약 처리 함수에 전달
+        agenda_items = [agenda for agenda in item.agendas]
         summaries = await summary.process_query(agenda_items, app_state)
-        return {"meeting_id": meeting_id, "summaries": summaries}
+        # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
+        return SummaryResponse(meeting_id=meeting_id, summaries=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
