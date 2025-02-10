@@ -1,5 +1,5 @@
 """
-회의 관련 엔드포인트
+    회의 관련 엔드포인트
 """
 
 import os
@@ -8,11 +8,16 @@ import torch
 import json 
 import httpx
 import logging
+import asyncio
+from typing import Any
 
-from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
 from core import rag, llm_utils, chromadb_utils, summary
 from schemes.agendas import AgendaData, AgendaItem
+from schemes.meetings import Message, AgendaBase, AgendaList, PrepareMeetingOut, NextAgendaOut
+from app.dependencies import get_app_state, get_app
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -51,9 +56,18 @@ logger.addHandler(handler)  # 로거에 핸들러 추가
 
 trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
 
-async def send_message(message: Message):  
-    """메시지 전송 함수"""
+async def send_message(message: Message):
+    """Jetson Orin Nano(FastAPI) -> Web(Django) 메시지 전송 함수
+
+    Args:
+        message (Message): 메시지 모델
+
+
+    Raises:
+        HTTPException: 예외 발생 시 예외 처리 
+    """
     async with httpx.AsyncClient() as client:
+
         try:
             response = await client.post(f"{DJANGO_URL}", json=message.model_dump())
             logger.info(f"Message sent to Django: {message}")
@@ -63,10 +77,12 @@ async def send_message(message: Message):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                                 detail=f"메시지 전송 중 오류가 발생했습니다.")
 
-async def stt_task(app_state: FastAPI.state):
+async def stt_task(app_state):
     """STT 백그라운드 작업"""
 
-    # 마이크 선언 
+    # 마이크 선언 코드 
+    
+    # 자주 호출되는 백그라운드 작업의 경우 직접적인 속성 접근이 효율적
     while app_state.stt_running:
         """
             mic를 통해 듣고(읽고), STT 진행 및 회의 도중 RAG 
@@ -83,7 +99,7 @@ async def stt_task(app_state: FastAPI.state):
             await send_message(Message(type="query", content=transcript))
             
             # RAG 질문 응답 
-            answer = await rag.process_query(query=transcript)
+            answer = await rag.process_query(app_state=app_state, query=transcript)
             message = Message(type="answer", content=answer)
             # 응답 전송 
             await send_message(message)
@@ -98,7 +114,7 @@ async def stt_task(app_state: FastAPI.state):
 
 @router.post("/{meeting_id}/prepare",status_code=status.HTTP_200_OK)
 async def prepare_meeting(meeting_info: AgendaList, meeting_id: str, 
-                          background_tasks: BackgroundTasks, app_state: FastAPI = Depends(get_app_state)):
+                          background_tasks: BackgroundTasks, app_state: Any = Depends(get_app_state)):
     """회의 준비 엔드포인트
 
     Args:
@@ -123,20 +139,26 @@ async def prepare_meeting(meeting_info: AgendaList, meeting_id: str,
         app_state.project_collection = chromadb_utils.get_project_collection(project_id=meeting_info["project_id"],
                                                                               app_state=app_state)  
         
-        # STT, Emb, RAG 모델 로드 
-        llm_utils.load_stt_model(app_state=app_state)
-        llm_utils.load_embedding_model(app_state=app_state) 
-        llm_utils.load_rag_model(app_state=app_state)
+        app_state.stt_running = llm_utils.load_stt_model(app_state=app_state)
+        app_state.embedding_model = llm_utils.load_embedding_model(app_state=app_state)
+        app_state.rag_model = llm_utils.load_rag_model(app_state=app_state)
         
+
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리 
         app_state.is_meeting_ready = True   
 
         app_state.stt_running = True # STT 실행 상태 업데이트 
+        
+        # 안건 관련 문서 상태 초기화 
+        app_state.agenda_docs = {}
+        
+        # 안건 별 관련 문서 저장 -> app_state.agenda_docs[agenda_id] = [문서1_ID, 문서2_ID, 문서3_ID]
 
         # 백그라운드 작업 시작 
         background_tasks.add_task(stt_task, app_state=app_state) 
 
         logger.info(f"Meeting {meeting_id} preparation completed.")
+        
         return PrepareMeetingOut(result=app_state.is_meeting_ready, message="회의 준비 완료")
 
     except HTTPException as he:
@@ -149,8 +171,9 @@ async def prepare_meeting(meeting_info: AgendaList, meeting_id: str,
 
 
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
-async def next_agenda(agenda: AgendaBase, app_state: FastAPI = Depends(get_app_state)):
+async def next_agenda(agenda: AgendaBase, app_state: Any = Depends(get_app_state)):
     """회의 시작 / 다음 안건 엔드포인트
+
 
     Args:
         agenda (agendas.AgendaBase): 안건 정보
@@ -164,10 +187,10 @@ async def next_agenda(agenda: AgendaBase, app_state: FastAPI = Depends(get_app_s
     """
     try:
         # 필요한 상태 값이 없으면 초기화 
-        if not hasattr(app_state.state, "stt_running"):
-            app_state.state.stt_running = False  # STT 실행 상태 초기화 
-        if not hasattr(app_state.state, "agenda_docs"):
-            app_state.state.agenda_docs = {}  # 안건 문서 저장 초기화 
+        if not hasattr(app_state, "stt_running"):
+            app_state.stt_running = False  # STT 실행 상태 초기화 
+        if not hasattr(app_state, "agenda_docs"):
+            app_state.agenda_docs = {}  # 안건 문서 저장 초기화 
 
         
         agenda_docs = app_state.agenda_docs
@@ -194,9 +217,11 @@ async def next_agenda(agenda: AgendaBase, app_state: FastAPI = Depends(get_app_s
             # <안건 추가> : 신규 안건인 경우 (agenda_docs에 안건 id가 존재하지 않는 경우)
             else: 
                 new_agenda_title = agenda.agenda_title  # 신규 안건 제목    
-                collection = app_state.project_collection  # 프로젝트 컬렉션 
-                docs = collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
+                # collection = app_state.project_collection  # 프로젝트 컬렉션 
+                docs = app_state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)  # 유사 문서 검색 
+                # docs = []
                 logger.info(f"New agenda processed: '{agenda.agenda_id}'")  # 신규 안건 처리 완료 로그 출력 
+
                 return NextAgendaOut(stt_running=app_state.stt_running, agenda_docs=docs)
                 
             
@@ -207,22 +232,26 @@ async def next_agenda(agenda: AgendaBase, app_state: FastAPI = Depends(get_app_s
 
 
 @router.post("/{meeting_id}/end")
-async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends()):
+async def end_meeting(meeting_id: int, end_request: bool, app_state: Any = Depends(get_app_state)):
     try:
         # 1. 백으로부터 종료 flag 받기
         if end_request:
+
             # 2. stt 종료 처리
-            if is_stt_running(app): # stt가 실행중이라면
-                set_stt_running(app, False) # stt 중지하기
+            if is_stt_running(app_state): # stt가 실행중이라면  # app.state.stt_running:
+                set_stt_running(app_state, False) # stt 중지하기
+
 
             # 3. 관련 상태 unload
-            llm_utils.unload_models(app)
+            llm_utils.unload_models(app_state)
             
-            if hasattr(app.state, "project_collection"):
-                del app.state.project_collection
+            if hasattr(app_state, "project_collection"):
+                del app_state.project_collection
             
-            if hasattr(app.state, "is_meeting_ready"):
-                del app.state.is_meeting_ready
+
+            if hasattr(app_state, "is_meeting_ready"):
+                del app_state.is_meeting_ready
+
 
             # GPU 메모리 비우기 및 가비지 컬렉션
             if torch.cuda.is_available():
@@ -242,7 +271,7 @@ async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends
 # 안건 제목 인식될 때마다 하나의 안건이라는 뜻 => 이걸로 안건별로 나누어 요약해서 보내면 될듯?
 # [정리] 요약 실행 -> 안건 제목 + 내용 가져오기 -> 내용만 가지고 요약 -> 보낼 때는 그 제목이랑 요약 결과 보내기
 @router.post("/{meeting_id}/summary")
-async def summarize_meetings(meeting_id: int, item: AgendaData)-> dict | HTTPException:
+async def summarize_meetings(meeting_id: int, item: AgendaData, app_state: Any = Depends(get_app_state))-> dict | HTTPException:
     """회의록 요약 함수
 
     Args:
@@ -254,7 +283,7 @@ async def summarize_meetings(meeting_id: int, item: AgendaData)-> dict | HTTPExc
     """
     if item.items:
         agenda_items = [agenda.model_dump() for agenda in item.items]
-        summaries = await summary.process_query(agenda_items)
+        summaries = await summary.process_query(agenda_items, app_state)
         return {"meeting_id": meeting_id, "summaries": summaries}
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")

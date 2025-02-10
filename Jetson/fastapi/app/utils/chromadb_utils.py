@@ -43,6 +43,7 @@ class ChromaCollection:
     def insert_data(self, data: List[EmbeddingDocument]) -> None:
         """데이터(문서)를 ChromaDB 컬렉션에 삽입"""
 
+        inserted_ids = []
         for embedding_document in data:
             self.collection.add(
                 ids=[embedding_document.ids],
@@ -50,8 +51,12 @@ class ChromaCollection:
                 documents=[embedding_document.documents],
             )
             print(f"Document({embedding_document.ids}) saved successfully!")
-            
+            inserted_ids.append(embedding_document.ids)
+
         print(f"All documents saved successfully!!")
+
+        return inserted_ids
+
 
 
     def search_data(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
@@ -101,10 +106,12 @@ class ChromaCollection:
         
         return doc_ids
         
+    
 # FastAPI와 연동하는 Dependency Injection 함수
-def get_project_collection(project_id: str, app_state: FastAPI.state) -> ChromaCollection:
+def get_project_collection(project_id: str, app_state) -> ChromaCollection:
     """FastAPI에서 ChromaDB Collection을 관리하도록 하는 함수
     
+
     - 프로젝트 관련 collection 생성 및 app_state에 저장
     Args:
         app (FastAPI): FastAPI 인스턴스
@@ -123,6 +130,7 @@ def get_project_collection(project_id: str, app_state: FastAPI.state) -> ChromaC
 
     # project_id 컬렉션이 초기화 되지 않았다면 초기화
     if project_id not in app_state.chromadb_collections:
-        app_state.chromadb_collections[project_id] = ChromaCollection(collection_name=project_id)
+        app_state.chromadb_collections[project_id] = ChromaCollection(collection_name=project_id, app_state=app_state)
+
 
     return app_state.chromadb_collections[project_id]  # 프로젝트 관련 collection 인스턴스 반환
