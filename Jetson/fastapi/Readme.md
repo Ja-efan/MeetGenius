@@ -1,6 +1,13 @@
 # Fast API App 기본구조
 
+```shell
+
+# fastapi/
+uvicorn app.main:app --port 8000 --reload
 ```
+
+```
+
     📦fastapi
     ┣ 📂app
     ┃ ┣ 📂api
