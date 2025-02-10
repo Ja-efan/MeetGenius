@@ -124,25 +124,23 @@ class ProjectCollection:
             metadatas=[new_metadata if new_metadata is not None else {}]
         )
 
-
     def remove_collection(self) -> None:
         """컬렉션 삭제"""
         self.client.delete_collection(self.collection.name)
 
 
     def get_agenda_docs(self, agenda: str, top_k: int = 3):
-        """안건명(agenda)과 유사한 문서 검색"""
-        # 임베딩 모델 
-        model = self.app.state.embedding_model
+        """안건명(agenda)과 유사한 문서 검색 및 문서 id 반환"""
+        
         # 안건명 포맷팅 (KoE5 모델 사용)
         formatted_agenda = [f"query: {agenda}"]
+
         # 임베딩 임베딩 결과 
-        agenda_embedding = model.encode(formatted_agenda)
-        # collection
-        collection = self.collection
+        agenda_embedding = self.app.state.embedding_model.encode(formatted_agenda)
         # 안건명과 유사한 문서 검색
-        results = collection.query(query_embeddings=agenda_embedding, n_results=top_k)
+        results = self.collection.query(query_embeddings=agenda_embedding, n_results=top_k)
         # 문서 id 반환 
         doc_ids = results["ids"][0]
-        
+
+
         return doc_ids

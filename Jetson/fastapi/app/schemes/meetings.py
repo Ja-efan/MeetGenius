@@ -18,7 +18,7 @@ class AgendaList(BaseModel):
     agenda_list: list[AgendaBase] = Field(..., description="안건 목록")
 
 
-class PrepareMeetingOut(BaseModel):
+class PrepareMeetingResponse(BaseModel):
     """회의 준비 완료 모델"""
     result: bool = Field(..., description="결과")
     message: str = Field(..., description="메시지")

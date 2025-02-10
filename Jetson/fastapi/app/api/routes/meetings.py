@@ -107,7 +107,9 @@ async def stt_task(app_state):
         # 트리거 키워드 확인 안된 경우 
         else:
             logger.info(f"No trigger keyword detected: {transcript}")
-            await send_message(Message(type="plain", content=transcript))
+            message = Message(type="plain", content=transcript)
+            logger.info(f"Message sent to Django: {message}")
+            await send_message(message)
 
         await asyncio.sleep(10)
 
@@ -153,11 +155,16 @@ async def prepare_meeting(meeting_info: AgendaList, meeting_id: str,
         app_state.agenda_docs = {}
         
         # 안건 별 관련 문서 저장 -> app_state.agenda_docs[agenda_id] = [문서1_ID, 문서2_ID, 문서3_ID]
+        app_state.agenda_list = meeting_info.agenda_list
+        for agenda in app_state.agenda_list:
+            app_state.agenda_docs[agenda.agenda_id] = app_state.project_collection.get_agenda_docs(agenda=agenda.agenda_title, top_k=3)
+
 
         # 백그라운드 작업 시작 
         background_tasks.add_task(stt_task, app_state=app_state) 
 
         logger.info(f"Meeting {meeting_id} preparation completed.")
+        logger.info(f"Agenda docs: {app_state.agenda_docs}")
         
         return PrepareMeetingOut(result=app_state.is_meeting_ready, message="회의 준비 완료")
 
