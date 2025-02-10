@@ -12,12 +12,15 @@ import asyncio
 from typing import Any
 
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
-from core import rag, llm_utils, chromadb_utils, summary
 # 새로 정의한 스키마 적용 (schemes.meetings 모듈에 새 스키마들을 정의했다고 가정)
-from schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails
-from schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
+from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails
+from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
 from app.dependencies import get_app_state
+from app.services import rag, summary
+from app.utils import llm_utils, chromadb_utils
 from dotenv import load_dotenv
+
+
 
 load_dotenv()
 
@@ -28,6 +31,7 @@ RAG_MODEL = os.getenv('RAG_MODEL')
 
 router = APIRouter(
     prefix="/api/v1/meetings",
+    tags=["meetings"]
 )
 
 def is_stt_running(app: FastAPI):
@@ -75,6 +79,8 @@ async def stt_task(app_state):
     while app_state.stt_running:
         # 실제 음성인식 로직 부분 (예시)
         print("STT is running ... (waiting for audio input)")
+        
+        # 음성인식 로직 부분
         transcript = "음성인식 테스트 중 입니다."  # 실제 로직 적용 필요
 
         # 트리거 키워드 확인

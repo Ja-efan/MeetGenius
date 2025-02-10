@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pathlib import Path
 from chromadb import PersistentClient
-from app.models.documents import DocumentList
+from app.schemes.documents import DocumentList
 from app.utils.llm_utils import load_embedding_model
 import numpy as np
 import chromadb

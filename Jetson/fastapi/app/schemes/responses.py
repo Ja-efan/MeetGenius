@@ -3,7 +3,7 @@
 """
 
 from pydantic import BaseModel, Field
-from meetings import AgendaSummary
+from app.schemes.meetings import AgendaSummary
 
 
 class PrepareMeetingResponse(BaseModel):
@@ -22,7 +22,8 @@ class NextAgendaResponse(BaseModel):
 class EndMeetingResponse(BaseModel):
     """회의 종료 모델"""
     meeting_id: int = Field(..., description="회의 id")
-    result: bool = Field(..., description="결과(True: 회의 종료, False: 회의 진행중)")
+    stt_running: bool = Field(..., description="STT 실행 상태")
+
 
 
 class SummaryResponse(BaseModel):
