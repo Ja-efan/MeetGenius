@@ -43,83 +43,67 @@
         "result": bool,
 """
 
-from fastapi import FastAPI, APIRouter, Depends
-from models import Document, EmbeddingDocument, Metadata
-import json
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.documents import DocumentList
+from app.dependencies import get_app_state, get_app
+from app.utils import chromadb_utils, llm_utils
 
-from core import chromadb_utils, llm_utils
 
 router = APIRouter(
     prefix="/api/v1/projects",
+    tags=["projects"]
 )
 
 
-
 @router.post("/{project_id}/documents")
-async def insert_project_document(document: Document, app: FastAPI = Depends()) -> json:
-    """ 프로젝트 문서 삽입 엔드포인트
-
-    Args:
-        document (Document): 문서 정보
-        app (FastAPI, optional): FastAPI 인스턴스. Defaults to Depends().
-
-    Returns:
-        json: 문서 삽입 여부 및 메시지
+async def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_app)):
     """
-    # 프로젝트 컬렉션 
-    project_collection = chromadb_utils.get_project_collection(app=app, project_id=document.project_id)
+    문서 삽입 
+    """
+    # 프로젝트 컬렉션 초기화 
+    if not hasattr(app.state, "project_collection"):
+        print(f"🔄 [INFO] Project collection not found in app.state, creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        print(f"✅ [INFO] Project collection created successfully!")
 
-    # 컬렉션에 문서가 존재하는지 확인
-    if project_collection.get_document(document.document_id):  # get_document 메서드 추가 필요
-        return {"result": False, "message": f"문서({document.document_id})가 이미 존재합니다."}
+    # 문서 삽입 
+    print(f"🔄 [INFO] Inserting documents into project collection...")
+    app.state.project_collection.insert_documents(documents)
+    print(f"✅ [INFO] Documents inserted successfully!")
 
-    # 임베딩 모델 로드 
-    model = llm_utils.load_embedding_model(app=app)
+    return {"message": "문서 삽입 완료", "documents": documents}
 
-    # 문서 내용 임베딩 변환 -> 현재 한 문장씩 임베딩 -> 배치 단위로 임베딩 할 수 있게 디벨롭되면 좋을 것 같다.
-    embeddings = []
-    for sentence in document.content:
-        embedding = model.encode([f"passage: {sentence}"])
-        embeddings.append(embedding)
-    
-    embedding_document = EmbeddingDocument(
-        ids=[document.document_id],
-        documents=document.content,
-        embeddings=embeddings,
-        metadatas=[
-            {
-                "document_id": document.document_id,  # 이걸 ids로 사용할 수 있을 것 같음
-                "project_id": document.project_id,  # 프로젝트 id
-                "project_name": document.project_name,  # 프로젝트 이름
-                "document_name": document.document_name,  # 문서 이름
-                "document_type": document.document_type,  # 문서 타입
 
-            }
-        ]
-    )
-    
-    # 문서 정보 저장
-    project_collection.insert_data([embedding_document])
+@router.get("/{project_id}/documents")
+async def get_documents(project_id: int, app=Depends(get_app)):
+    """
+    문서 조회 
+    """
+    if not hasattr(app.state, "project_collection"):
+        print(f"🔄 [INFO] Project collection not found in app.state, creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        print(f"✅ [INFO] Project collection created successfully!")
 
-    return {"result": True, "message": "문서 삽입 완료"}
+    documents = app.state.project_collection.get_documents(project_id)
+    return {"message": "문서 조회 완료", "documents": documents}   
 
 
 @router.delete("/{project_id}/documents/{document_id}")
-async def delete_project_document(project_id: str, document_id: str, app: FastAPI = Depends()) -> json:
-    """ 프로젝트 문서 삭제 엔드포인트
-
-    Args:
-        project_id (str): 프로젝트 id
-        document_id (str): 문서 id
-        app (FastAPI, optional): FastAPI 인스턴스. Defaults to Depends().
-
-    Returns:
-        json: 문서 삭제 여부 및 메시지
+async def del_document(project_id: int, document_id: int, app=Depends(get_app)):
     """
-    # 프로젝트 컬렉션 
-    project_collection = chromadb_utils.get_project_collection(project_id=project_id)
+    문서 삭제
+    """
+    if not hasattr(app.state, "project_collection"):
+        print(f"⚠️ [WARNING] Project collection not found for project {project_id}. Creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
     
-    # 문서 삭제
-    project_collection.delete_data(document_id)
+    documents = app.state.project_collection.get_documents(project_id) # 삭제하려는 문서 존재 확인(get_documents)
+    document_ids = [doc["id"] for doc in documents]
+    if document_id not in document_ids:
+        raise HTTPException(status_code=404, detail=f"문서 {document_id}를 찾을 수 없습니다.")
     
-    return {"result": True, "message": f"문서({document_id}) 삭제 완료"}
+    print(f"🔄 [INFO] Deleting document {document_id} from project collection...")
+    app.state.project_collection.del_documents(document_id)
+    print(f"✅ [INFO] Document {document_id} deleted successfully!")
+
+    return {"message": f"문서 {document_id} 삭제 완료"}
