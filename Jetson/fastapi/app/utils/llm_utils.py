@@ -1,35 +1,31 @@
-import requests
 import torch
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, BitsAndBytesConfig, PreTrainedTokenizerFast, BartForConditionalGeneration
 from sentence_transformers import SentenceTransformer, models
-import json
-import os 
-from dotenv import load_dotenv
 import logging
-# from llama_cpp 
-from fastapi import Depends, FastAPI
-from dependencies import get_app_state
+from llama_cpp import Llama
 
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
  
-def load_stt_model(app_state: FastAPI.state):
+def load_stt_model(app_state):
     """
-    STT 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
+    STT 모델을 로드 후 반환환
     """
 
-    if not hasattr(app_state.state, "stt_model"):
+    if not hasattr(app_state, "stt_model"):
         print(f"Loading STT model ...")
-        app_state.state.stt_model = None 
-        print(f"STT model loaded successfully!")
+        stt_model = None  # STT 모델 로드 
+        print(f"STT model loaded successfully!") 
+        
+        return stt_model
 
 
-def load_embedding_model(app_state: FastAPI.state):
+def load_embedding_model(app_state):
     """
-    Embedding 모델을 로드하여 FastAPI의 상태 (app.state)에 저장 
+    Embedding 모델 로드 후 반환환
     """
-    if not hasattr(app_state.state, "embedding_model"):
+    if not hasattr(app_state, "embedding_model"):
 
         model_name_or_path ="nlpai-lab/KoE5"
         
@@ -57,17 +53,17 @@ def load_embedding_model(app_state: FastAPI.state):
 
         # Tokenizer도 명시적으로 설정
         sentence_embedding_model.tokenizer = tokenizer
-
-        app_state.state.embedding_model = sentence_embedding_model
         
         logging.info("Embedding model (KoE5) loaded successfully!")
+        
+        return sentence_embedding_model
 
 
-def load_rag_model(app_state: FastAPI.state):        
+def load_rag_model(app_state):        
     """
-    LLM을 로드하여 FastAPI의 상태 (app.state)에 저장 
+    RAG 모델 로드 후 반환
     """
-    if not hasattr(app_state.state, "rag_model"):
+    if not hasattr(app_state, "rag_model"):
 
         model_name_or_path = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -80,36 +76,59 @@ def load_rag_model(app_state: FastAPI.state):
         )
 
         # 양자화된 모델 로드 
-        quantized_model = model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
+        rag_model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                                                        quantization_config=quantization_config,
                                                                        cache_dir="../.huggingface-cache/")
     
-        app_state.state.rag_model = None 
-        # print(f"LLM model loaded successfully!")
+        # app_state.state.rag_model = None 
         logging.info("RAG model loaded successfully!")
 
-def load_summary_model(app_state: FastAPI.state):
-    pass 
+        return rag_model
 
 
-def unload_models(app_state: FastAPI.state):
+def load_summary_model(app_state):
+    """
+    Summary 모델 로드 후 반환
+    """
+    if not hasattr(app_state, "summary_model"):
+
+        print(f"Loading summary model ...")
+
+        # 요약 모델 로딩
+        model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
+        model = BartForConditionalGeneration.from_pretrained(model_name)
+
+        # 모델과 토크나이저를 app.state에 저장
+        app_state.summary_model = {
+            'tokenizer': tokenizer,
+            'model': model
+        }
+
+
+        logging.info("Summary model loaded successfully!")
+
+
+
+def unload_models(app_state):
     """
     FastAPI 상태(app.state)에서 모델을 제거하여 메모리 해제 
     """
-    if hasattr(app_state.state, "stt_model"):
-        del app_state.state.stt_model
+    if hasattr(app_state, "stt_model"):
+        del app_state.stt_model
         print(f"STT model unloaded!")
 
-    if hasattr(app_state.state, "embedding_model"):
-        del app_state.state.embedding_model
+    if hasattr(app_state, "embedding_model"):
+        del app_state.embedding_model
         print(f"Embedding model unloaded!")
     
-    if hasattr(app_state.state, "rag_model"):
-        del app_state.state.rag_model
+    if hasattr(app_state, "rag_model"):
+        del app_state.rag_model
         print(f"RAG model unloaded!")
     
-    if hasattr(app.state, "summary_model"):
-        del app.state.summary_model
+    if hasattr(app_state, "summary_model"):
+        del app_state.summary_model
         print(f"Summary model unloaded!")
     
+
     print("All models unloaded successfully!!")

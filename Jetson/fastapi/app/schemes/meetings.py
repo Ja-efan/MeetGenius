@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 class Message(BaseModel):
     """메시지 모델"""
-    type: str = Field(..., description="메시지 타입(plain, query, answer)")
+    type: str = Field(..., description="메시지 타입(plain, query, rag)")
     content: str = Field(..., description="메시지 내용")
 
 class AgendaBase(BaseModel):
