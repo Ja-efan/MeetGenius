@@ -1,32 +1,19 @@
-""" 프로젝트 문서 관련 라우트 """
-
-import fastapi
-from fastapi import FastAPI, APIRouter, Depends
-from app.schemes import DocumentList
-from typing import Any
-from app.utils import chromadb_utils, llm_utils
-from app.dependencies import get_app_state, get_app
-from app.schemes import DocumentInsertResponse, DocumentDeleteResponse
+from fastapi import APIRouter, HTTPException, Depends
+from app.schemes.documents import DocumentList
+from app.utils import chromadb_utils
+from app.dependencies import get_app
 
 router = APIRouter(
     prefix="/api/v1/projects",
-)   
-
+    tags=["projects"]
+)
 
 
 @router.post("/{project_id}/documents")
-async def insert_document(documents: DocumentList, project_id: str, app: FastAPI = Depends(get_app)):
-    """ 프로젝트 문서 삽입 엔드포인트
-
-
-    Args:
-        document (Document): 문서 정보
-        app (FastAPI, optional): FastAPI 인스턴스. Defaults to Depends().
-
-    Returns:
-        json: 문서 삽입 여부 및 메시지
+async def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_app)):
     """
-    
+    문서 삽입 
+    """
     # 프로젝트 컬렉션 초기화 
     if not hasattr(app.state, "project_collection"):
         print(f"🔄 [INFO] Project collection not found in app.state, creating new one...")
@@ -35,40 +22,42 @@ async def insert_document(documents: DocumentList, project_id: str, app: FastAPI
 
     # 문서 삽입 
     print(f"🔄 [INFO] Inserting documents into project collection...")
-    inserted_ids = app.state.project_collection.insert_documents(documents)
+    app.state.project_collection.insert_documents(documents)
     print(f"✅ [INFO] Documents inserted successfully!")
 
-    return DocumentInsertResponse(success=True,
-                                  message="문서 삽입 완료", 
-                                  num_inserted=len(documents), 
-                                  inserted_ids=inserted_ids)
+    return {"message": "문서 삽입 완료", "documents": documents}
 
 
-@router.delete("/{project_id}/documents/{document_id}")
-async def delete_project_document(project_id: str, document_id: str, app: FastAPI = Depends(get_app)):
-
-    """ 프로젝트 문서 삭제 엔드포인트
-
-    Args:
-        project_id (str): 프로젝트 id
-        document_id (str): 문서 id
-        app (FastAPI, optional): FastAPI 인스턴스. Defaults to Depends(get_app).
-
-    Returns:
-        _type_: _description_
+@router.get("/{project_id}/documents")
+async def get_documents(project_id: int, app=Depends(get_app)):
     """
-    # 프로젝트 컬렉션 
+    문서 조회 
+    """
     if not hasattr(app.state, "project_collection"):
         print(f"🔄 [INFO] Project collection not found in app.state, creating new one...")
         app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
         print(f"✅ [INFO] Project collection created successfully!")
-        
-    # 문서 삭제 
-    print(f"🔄 [INFO] Deleting document from project collection...")
-    app.state.project_collection.delete_document(document_id)
-    print(f"✅ [INFO] Document deleted successfully!")
+
+    documents = app.state.project_collection.get_documents(project_id)
+    return {"message": "문서 조회 완료", "documents": documents}   
+
+
+@router.delete("/{project_id}/documents/{document_id}")
+async def del_document(project_id: int, document_id: int, app=Depends(get_app)):
+    """
+    문서 삭제
+    """
+    if not hasattr(app.state, "project_collection"):
+        print(f"⚠️ [WARNING] Project collection not found for project {project_id}. Creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
     
-    return DocumentDeleteResponse(success=True,
-                                  message="문서 삭제 완료", 
-                                  num_deleted=1, 
-                                  deleted_ids=[document_id])
+    documents = app.state.project_collection.get_documents(project_id) # 삭제하려는 문서 존재 확인(get_documents)
+    document_ids = [doc["id"] for doc in documents]
+    if document_id not in document_ids:
+        raise HTTPException(status_code=404, detail=f"문서 {document_id}를 찾을 수 없습니다.")
+    
+    print(f"🔄 [INFO] Deleting document {document_id} from project collection...")
+    app.state.project_collection.del_documents(document_id)
+    print(f"✅ [INFO] Document {document_id} deleted successfully!")
+
+    return {"message": f"문서 {document_id} 삭제 완료"}
