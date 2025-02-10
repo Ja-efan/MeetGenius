@@ -2,21 +2,17 @@
 회의 관련 엔드포인트
 """
 
-from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
-import httpx 
-import os 
-import asyncio
-from dotenv import load_dotenv
+import os
 import gc
 import torch 
 import json 
 
+from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends
 from core import rag, llm_utils, chromadb_utils, summary
 from models.agendas import AgendaData, AgendaItem
-
+from dotenv import load_dotenv
 
 load_dotenv()
-
 
 DJANGO_URL = os.getenv('DJANGO_URL') # 장고 url 
 STT_MODEL = os.getenv('STT_MODEL')
@@ -27,7 +23,16 @@ router = APIRouter(
     prefix="/api/v1/meetings",
 )
 
-load_dotenv()
+# stt_running = False # STT 실행 상태 ( 백그라운드 실행 )
+def is_stt_running(app: FastAPI):
+    """STT 실행 상태 확인"""
+    return getattr(app.state, "stt_running", False)
+
+def set_stt_running(app: FastAPI, status: bool):
+    """STT 실행 상태 설정"""
+    app.state.stt_running = status
+
+trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거 
 
 
 DJANGO_URL = os.getenv('DJANGO_URL') # 장고 url 
@@ -197,13 +202,36 @@ async def next_agenda(agenda: AgendaBase, app_state: FastAPI = Depends(get_app_s
         logger.exception(f"Exception occured in next_agenda.\n{str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                             detail=f"다음 안건 처리 중 오류가 발생했습니다.")
-    
+
 
 @router.post("/{meeting_id}/end")
-async def end_meeting(meeting_id: str, user_info: dict, app_state: FastAPI = Depends(get_app_state)):
-    # 회의 종료 로직
-    # ...   
-    return {"result": True}
+async def end_meeting(meeting_id: int, end_request: bool, app: FastAPI = Depends()):
+    try:
+        # 1. 백으로부터 종료 flag 받기
+        if end_request:
+            # 2. stt 종료 처리
+            if is_stt_running(app): # stt가 실행중이라면
+                set_stt_running(app, False) # stt 중지하기
+
+            # 3. 관련 상태 unload
+            llm_utils.unload_models(app)
+            
+            if hasattr(app.state, "project_collection"):
+                del app.state.project_collection
+            
+            if hasattr(app.state, "is_meeting_ready"):
+                del app.state.is_meeting_ready
+
+            # GPU 메모리 비우기 및 가비지 컬렉션
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            gc.collect()
+
+            return {"meeting_id": meeting_id, "result": True}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"회의 종료 중 오류 발생: {str(e)}")
 
 
 # 회의ID(meeting_id)에 따른 회의록 수정 페이지(edit_document)
