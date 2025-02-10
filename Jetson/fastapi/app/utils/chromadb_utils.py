@@ -52,6 +52,7 @@ class ProjectCollection:
 
         model = self.app.state.embedding_model  # 최신 embedding_model 가져오기
         
+        inserted_ids = []
         for document in documents.documents:  # documents는 DocumentList 객체
             sentence = [f"passage: {document.document_content}"]
             embeddings = model.encode(sentence)
@@ -62,12 +63,10 @@ class ProjectCollection:
                 embeddings=embeddings,
                 metadatas=[document.document_metadata.model_dump()]
             )
+
+            inserted_ids.append(document.document_id)
         
-        documents = self.collection.get(
-            include=["documents", "embeddings", "metadatas"]
-        )
-        print(f"documents: {documents}")
-        return documents
+        return inserted_ids
 
 
     def get_documents(self, project_id: str):
@@ -86,11 +85,11 @@ class ProjectCollection:
         return documents  # ✅ JSON 변환 가능
     
 
-    def del_documents(self, document_id: int):
+    def delete_documents(self, document_id: int):
         """
         문서 삭제
         """
-        # 삭제하려는 문서 존재 확인하는 건 projects/del_documents에서 진행함
+        # 삭제하려는 문서 존재 확인하는 건 projects/delete_documents에서 진행함
         # 문서 삭제 진행
         self.collection.delete(ids=[str(document_id)])
 
@@ -103,8 +102,6 @@ class ProjectCollection:
 
         print(f"✅ [INFO] Document {document_id} deleted successfully.")
         return True
-
-# =======
 
 
     def search_documents(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:

@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 
-
 class DocumentMetadata(BaseModel):
     project_id: int
     document_type: int
@@ -13,7 +12,6 @@ class Document(BaseModel):
     
 class DocumentList(BaseModel):
     documents: list[Document]
-    
     
 class DocumentInsertResponse(BaseModel):
     success: bool

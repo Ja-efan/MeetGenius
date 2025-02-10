@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.schemes.documents import DocumentList
+from app.schemes.documents import DocumentList, DocumentInsertResponse, DocumentDeleteResponse
 from app.utils import chromadb_utils
 from app.dependencies import get_app
 
@@ -22,10 +22,10 @@ async def insert_documents(project_id: int, documents:DocumentList, app=Depends(
 
     # 문서 삽입 
     print(f"🔄 [INFO] Inserting documents into project collection...")
-    app.state.project_collection.insert_documents(documents)
+    inserted_ids = app.state.project_collection.insert_documents(documents)
     print(f"✅ [INFO] Documents inserted successfully!")
 
-    return {"message": "문서 삽입 완료", "documents": documents}
+    return DocumentInsertResponse(success=True, message="문서 삽입 완료", num_inserted=len(inserted_ids), inserted_ids=inserted_ids)
 
 
 @router.get("/{project_id}/documents")
@@ -43,7 +43,7 @@ async def get_documents(project_id: int, app=Depends(get_app)):
 
 
 @router.delete("/{project_id}/documents/{document_id}")
-async def del_document(project_id: int, document_id: int, app=Depends(get_app)):
+async def delete_document(project_id: int, document_id: int, app=Depends(get_app)):
     """
     문서 삭제
     """
@@ -57,7 +57,7 @@ async def del_document(project_id: int, document_id: int, app=Depends(get_app)):
         raise HTTPException(status_code=404, detail=f"문서 {document_id}를 찾을 수 없습니다.")
     
     print(f"🔄 [INFO] Deleting document {document_id} from project collection...")
-    app.state.project_collection.del_documents(document_id)
+    delete_success = app.state.project_collection.delete_documents(document_id)
     print(f"✅ [INFO] Document {document_id} deleted successfully!")
 
-    return {"message": f"문서 {document_id} 삭제 완료"}
+    return DocumentDeleteResponse(success=delete_success, message=f"문서 {document_id} 삭제 완료", num_deleted=1, deleted_ids=[document_id])
