@@ -50,10 +50,19 @@ async def delete_document(project_id: int, document_id: int, app=Depends(get_app
     if not hasattr(app.state, "project_collection"):
         print(f"⚠️ [WARNING] Project collection not found for project {project_id}. Creating new one...")
         app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
-    
+
     documents = app.state.project_collection.get_documents(project_id) # 삭제하려는 문서 존재 확인(get_documents)
-    document_ids = [doc["id"] for doc in documents]
-    if document_id not in document_ids:
+    
+    # documents['documents']에서 문서들 추출
+    document_list = documents.get('documents', [])
+    
+    if not isinstance(document_list, list):
+        raise HTTPException(status_code=500, detail="문서 목록이 예상한 형식이 아닙니다.")
+    
+    # 문서들의 id를 추출
+    document_ids = [str(doc.get("id", "")) for doc in document_list]
+
+    if str(document_id) not in document_ids:
         raise HTTPException(status_code=404, detail=f"문서 {document_id}를 찾을 수 없습니다.")
     
     print(f"🔄 [INFO] Deleting document {document_id} from project collection...")
