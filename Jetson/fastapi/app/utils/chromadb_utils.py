@@ -48,7 +48,7 @@ class ProjectCollection:
         
         # FastAPI의 최신 app.state 가져오기
         if not hasattr(self.app.state, "embedding_model"):
-            self.app.state.load_embedding_model(self.app.state)
+            self.app.state.embedding_model = load_embedding_model(self.app)
 
         model = self.app.state.embedding_model  # 최신 embedding_model 가져오기
         
@@ -69,10 +69,10 @@ class ProjectCollection:
         return inserted_ids
 
 
-    def get_documents(self, project_id: str):
+    def get_documents(self, project_id: int):
         """ 모든 문서 조회 """
         documents = self.collection.get(
-            where={"project_id": str(project_id)},
+            where={"project_id": project_id},
             include=["documents", "embeddings", "metadatas"]
         )
 
