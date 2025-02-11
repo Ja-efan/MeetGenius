@@ -102,6 +102,7 @@ async def stt_task(app: FastAPI):
 
         await asyncio.sleep(10)
 
+
 @router.post("/{meeting_id}/prepare", status_code=status.HTTP_200_OK)
 async def prepare_meeting(
     meeting_info: MeetingAgendas, 
@@ -180,6 +181,7 @@ async def prepare_meeting(
             detail="회의 준비 중 오류가 발생했습니다."
         )
 
+
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
 async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
     """회의 시작 / 다음 안건 엔드포인트
@@ -227,32 +229,41 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
             detail="다음 안건 처리 중 오류가 발생했습니다."
         )
 
+
 @router.post("/{meeting_id}/end", status_code=status.HTTP_200_OK)
 async def end_meeting(meeting_id: int, app_state: Any = Depends(get_app_state)):
     try:
         # STT 종료 처리
-        if is_stt_running(app_state):
+        if hasattr(app_state, "stt_running") and is_stt_running(app_state):
             set_stt_running(app_state, False)
 
             # 관련 모델 언로드
             llm_utils.unload_models(app_state)
+            
+            # 앱 상태에서 필요없는 것들 삭제
             if hasattr(app_state, "project_collection"):
                 del app_state.project_collection
             if hasattr(app_state, "is_meeting_ready"):
                 del app_state.is_meeting_ready
 
+            # 메모리 정리
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             gc.collect()
 
             return EndMeetingResponse(meeting_id=meeting_id, stt_running=False)
-    
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="STT가 실행되지 않았습니다."
+            )
 
     except Exception as e:
         raise HTTPException(
             status_code=500, 
             detail=f"회의 종료 중 오류 발생: {str(e)}"
         )
+    
 
 @router.post("/{meeting_id}/summary", status_code=status.HTTP_200_OK)
 async def summarize_meetings(
