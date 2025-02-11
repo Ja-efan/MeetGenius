@@ -48,7 +48,7 @@ class ProjectCollection:
         
         # FastAPI의 최신 app.state 가져오기
         if not hasattr(self.app.state, "embedding_model"):
-            self.app.state.embedding_model = load_embedding_model(self.app.state)
+            self.app.state.load_embedding_model(self.app.state)
 
         model = self.app.state.embedding_model  # 최신 embedding_model 가져오기
         
@@ -139,5 +139,7 @@ class ProjectCollection:
         # 문서 id 반환 
         doc_ids = results["ids"][0]
 
-
+        # 문서 id 반환 형식 변환
+        doc_ids = [int(doc_id) for doc_id in doc_ids]
+        
         return doc_ids

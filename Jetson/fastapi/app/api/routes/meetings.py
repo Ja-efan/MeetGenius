@@ -152,7 +152,7 @@ async def prepare_meeting(
             )
 
         # 백그라운드 작업 시작
-        background_tasks.add_task(stt_task, app=app)
+        # background_tasks.add_task(stt_task, app=app)  # test/next-agenda 테스트 주석 처리
 
         print(f"✅ [DEBUG] Meeting {meeting_id} preparation completed.")
         print(f"✅ [DEBUG] Agenda docs: {app.state.agenda_docs}")
@@ -169,44 +169,44 @@ async def prepare_meeting(
         )
 
 @router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
-async def next_agenda(agenda: Agenda, app_state: Any = Depends(get_app_state)):
+async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
     """회의 시작 / 다음 안건 엔드포인트
 
     Args:
         agenda (Agenda): 안건 정보
-        app_state (Any): 앱 상태
+        app (FastAPI): 앱 상태
 
     Returns:
         NextAgendaResponse: 회의 시작 또는 다음 안건 응답
     """
     try:
         # 필요한 상태 값 초기화
-        if not hasattr(app_state, "stt_running"):
-            app_state.stt_running = False
-        if not hasattr(app_state, "agenda_docs"):
-            app_state.agenda_docs = {}
+        if not hasattr(app.state, "stt_running"):
+            app.state.stt_running = False
+        if not hasattr(app.state, "agenda_docs"):
+            app.state.agenda_docs = {}
 
-        agenda_docs = app_state.agenda_docs
+        agenda_docs = app.state.agenda_docs
 
         # <회의 시작>: STT가 아직 실행되지 않은 경우
-        if not app_state.stt_running:
-            app_state.stt_running = True
+        if not app.state.stt_running:
+            app.state.stt_running = True
             # 현재 안건 id에 해당하는 관련 문서 반환
             docs = agenda_docs.get(agenda.id, [])
             logger.info(f"Start STT for meeting agenda '{agenda.id}'")
-            return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
+            return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
         else:
             docs = agenda_docs.get(agenda.id, [])
             # <다음 안건>: 기존 안건인 경우
             if docs:
                 logger.info(f"Return existing agenda docs for agenda '{agenda.id}'")
-                return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
+                return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
             # <안건 추가>: 신규 안건인 경우
             else:
                 new_agenda_title = agenda.title  # 신규 안건 제목
-                docs = app_state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)
+                docs = app.state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)
                 logger.info(f"New agenda processed: '{agenda.id}'")
-                return NextAgendaResponse(stt_running=app_state.stt_running, agenda_docs=docs)
+                return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
 
     except Exception as e:
         logger.exception(f"Exception occured in next_agenda.\n{str(e)}")
