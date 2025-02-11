@@ -32,14 +32,14 @@ class ProjectCollection:
         system_name = platform.system()
         
         if system_name in ["Windows", "Darwin"]:  # Windows & MacOS (Darwin)
-            print(f"[INFO] Running on {system_name} - Using Local ChromaDB Client")
+            print(f"🔄 [INFO] Running on {system_name} - Using Local ChromaDB Client")
             base_dir = Path(__file__).resolve().parent.parent  # 프로젝트 루트
             db_path = base_dir / "vector_db"
-            print(f"[ChromaDB] 데이터베이스 경로: {str(db_path)}")
+            print(f"✅ [ChromaDB] 데이터베이스 경로: {str(db_path)}")
             return PersistentClient(path=str(db_path))
     
         else:  # Jetson (Linux 기반)
-            print(f"[INFO] Running on {system_name} - Using Remote ChromaDB Server")
+            print(f"🔄 [INFO] Running on {system_name} - Using Remote ChromaDB Server")
             return chromadb.HttpClient(host="chromadb-server", port=8001, ssl=False)  # Jetson에서 ChromaDB 서버에 연결
 
 

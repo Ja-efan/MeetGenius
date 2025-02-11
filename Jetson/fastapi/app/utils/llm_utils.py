@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, BitsAnd
 from sentence_transformers import SentenceTransformer, models
 import logging
 from llama_cpp import Llama
+from fastapi import FastAPI
 from pathlib import Path
 
 ###########################################################################
@@ -13,12 +14,12 @@ LLM_MODELS_DIR = BASE_DIR / ".llm-model-caches"
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
  
-def load_stt_model(app_state):
+def load_stt_model(app: FastAPI):
     """
     STT 모델을 로드 후 반환환
     """
 
-    if not hasattr(app_state, "stt_model"):
+    if not hasattr(app.state, "stt_model"):
         print(f"🔄 [INFO] Loading STT model ...")
         stt_model = None  # STT 모델 로드 
         print(f"✅ [INFO] STT model loaded successfully!") 
@@ -26,11 +27,11 @@ def load_stt_model(app_state):
         return stt_model
 
 
-def load_embedding_model(app_state):
+def load_embedding_model(app: FastAPI):
     """
     Embedding 모델 로드 후 반환환
     """
-    if not hasattr(app_state, "embedding_model"):
+    if not hasattr(app.state, "embedding_model"):
 
         model_name_or_path ="nlpai-lab/KoE5"
         
@@ -67,7 +68,7 @@ def load_embedding_model(app_state):
         return sentence_embedding_model
 
 
-def load_rag_model(app_state, 
+def load_rag_model(app: FastAPI, 
                    rag_model_name="EXAONE-3.5-2.4B-Instruct-Q4_K_M.gguf",
                    n_gpu_layers: int=-1,
                    metadata: bool=True,
@@ -104,11 +105,11 @@ def load_rag_model(app_state,
         raise e
 
 
-def load_summary_model(app_state):
+def load_summary_model(app: FastAPI):
     """
     Summary 모델 로드 후 반환
     """
-    if not hasattr(app_state, "summary_model"):
+    if not hasattr(app.state, "summary_model"):
 
         print(f"Loading summary model ...")
 
@@ -118,7 +119,7 @@ def load_summary_model(app_state):
         model = BartForConditionalGeneration.from_pretrained(model_name)
 
         # 모델과 토크나이저를 app.state에 저장
-        app_state.summary_model = {
+        app.state.summary_model = {
             'tokenizer': tokenizer,
             'model': model
         }
@@ -128,24 +129,24 @@ def load_summary_model(app_state):
 
 
 
-def unload_models(app_state):
+def unload_models(app: FastAPI):
     """
     FastAPI 상태(app.state)에서 모델을 제거하여 메모리 해제 
     """
-    if hasattr(app_state, "stt_model"):
-        del app_state.stt_model
+    if hasattr(app.state, "stt_model"):
+        del app.state.stt_model
         print(f"STT model unloaded!")
 
-    if hasattr(app_state, "embedding_model"):
-        del app_state.embedding_model
+    if hasattr(app.state, "embedding_model"):
+        del app.state.embedding_model
         print(f"Embedding model unloaded!")
-    
-    if hasattr(app_state, "rag_model"):
-        del app_state.rag_model
+
+    if hasattr(app.state, "rag_model"):
+        del app.state.rag_model
         print(f"RAG model unloaded!")
     
-    if hasattr(app_state, "summary_model"):
-        del app_state.summary_model
+    if hasattr(app.state, "summary_model"):
+        del app.state.summary_model
         print(f"Summary model unloaded!")
     
 

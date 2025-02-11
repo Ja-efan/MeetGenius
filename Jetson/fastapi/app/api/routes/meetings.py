@@ -139,11 +139,11 @@ async def prepare_meeting(
         )
         # print(f"✅ [DEBUG] Project collection: {app.state.project_collection}")
         
-        app.state.stt_model = llm_utils.load_stt_model(app_state=app)
+        app.state.stt_model = llm_utils.load_stt_model(app=app)
         # print(f"✅ [DEBUG] STT model: {app.state.stt_model}")
-        app.state.embedding_model = llm_utils.load_embedding_model(app_state=app)
+        app.state.embedding_model = llm_utils.load_embedding_model(app=app)
         # print(f"✅ [DEBUG] Embedding model: {app.state.embedding_model}")
-        app.state.rag_model = llm_utils.load_rag_model(app_state=app)
+        app.state.rag_model = llm_utils.load_rag_model(app=app)
         # print(f"✅ [DEBUG] RAG model: {app.state.rag_model}")
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
@@ -231,20 +231,20 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
 
 
 @router.post("/{meeting_id}/end", status_code=status.HTTP_200_OK)
-async def end_meeting(meeting_id: int, app_state: Any = Depends(get_app_state)):
+async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
     try:
         # STT 종료 처리
-        if hasattr(app_state, "stt_running") and is_stt_running(app_state):
-            set_stt_running(app_state, False)
+        if hasattr(app.state, "stt_running") and is_stt_running(app):
+            set_stt_running(app, False)
 
             # 관련 모델 언로드
-            llm_utils.unload_models(app_state)
+            llm_utils.unload_models(app=app)
             
             # 앱 상태에서 필요없는 것들 삭제
-            if hasattr(app_state, "project_collection"):
-                del app_state.project_collection
-            if hasattr(app_state, "is_meeting_ready"):
-                del app_state.is_meeting_ready
+            if hasattr(app.state, "project_collection"):
+                del app.state.project_collection
+            if hasattr(app.state, "is_meeting_ready"):
+                del app.state.is_meeting_ready
 
             # 메모리 정리
             if torch.cuda.is_available():
