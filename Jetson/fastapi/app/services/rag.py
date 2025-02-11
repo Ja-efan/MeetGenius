@@ -1,59 +1,77 @@
 """
     RAG 관련 함수 모듈 
 """
+import time
+from fastapi import FastAPI, HTTPException
+from app.utils import chromadb_utils, llm_utils
 
-from fastapi import HTTPException
-
-async def process_query(app_state, query: str) -> str:
+async def rag_process(query: str, app: FastAPI):
     """사용자의 질문을 처리하여 RAG 기반의 답변을 생성하는 함수 
 
     Args:
-        app (FastAPI): FastAPI 애플리케이션 인스턴스 
         query (str): 사용자 질문
-
+        app (FastAPI): FastAPI 애플리케이션 인스턴스 
+    
     Returns:
         str: RAG 응답 (검색된 문서 기반 생성)
     """
 
-    # FastAPI의 전역 상태에서 필요한 리소스 가져오기 
-    project_collection = getattr(app_state.state, "project_collection", None)
-    embedidng_model = getattr(app_state.state, "embedding_model", None)
-    rag_model = getattr(app_state.state, "rag_model", None)
     
-
-
+    # 필요한 모델과 DB가 로드되었는지 확인 
+    if not hasattr(app.state, "project_collection"):
+        print(f"🔄 [INFO] Project collection not found in app.state, loading...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(
+            project_id=app.state.project_id,
+            app=app
+        )
+        print(f"✅ [INFO] Project collection loaded successfully!")
+        
+    # 임베딩 모델 로드 
+    if not hasattr(app.state, "embedding_model"):
+        print(f"🔄 [INFO] Embedding model not found in app.state, loading...")
+        app.state.embedding_model = llm_utils.load_embedding_model(app_state=app)
+        
+    # RAG 모델 로드 
+    if not hasattr(app.state, "rag_model"):
+        print(f"🔄 [INFO] RAG model not found in app.state, loading...")
+        app.state.rag_model = llm_utils.load_rag_model(app_state=app)
+        
+    # 필요한 모델과 DB 가져오기 
+    project_collection = app.state.project_collection
+    embedding_model = app.state.embedding_model
+    rag_model = app.state.rag_model
+    
     # 모델과 DB가 로드되었는지 확인 
-    if not project_collection or not embedidng_model or not rag_model:
+    if not project_collection or not embedding_model or not rag_model:
         raise HTTPException(status_code=500, detail="RAG 시스템이 완전히 로드되지 않았습니다. 다시 시도해주세요.")
     
-    # KoE5 모델 임베딩 프로세스 (https://huggingface.co/nlpai-lab/KoE5#python-code)
+    # KoE5 모델 임베딩 프로세스
     formatted_query = [f"query: {query}"]
 
-    # 1. 사용자의 질문을 벡터로 변환 
-    query_embedding = embedidng_model.encode(formatted_query)
+    # 사용자의 질문을 벡터로 변환 
+    query_embedding = embedding_model.encode(formatted_query)
 
-    # 2-1. ChroaaDB에서 관련 문서 검색 (Top-K 검색)
-    search_results = project_collection.search_data(query=query, top_k=1)
-
-
-    # 2-2. 검색된 문서 데이터 정리 
-    retrieved_docs = [
-        doc for doc in search_results if doc
-    ]
-
-    # 3.검색된 문서를 기반으로 LLM에게 최종 응답 요청 
-    if not retrieved_docs:
-        return {"message": "관련 문서를 찾을 수 없습니다."}
+    # ChroaaDB에서 관련 문서 검색 (Top-K 검색)
+    search_results = project_collection.search_documents(query_embedding=query_embedding, top_k=1)
+    retrieved_content = search_results["documents"][0]
+    retrieved_doc_ids = search_results["ids"][0]
     
-    # 3-1. LLM 프롬프트 구성 
-    retrieved_docs = "\n".join(retrieved_docs) 
+    # 프롬프트 구성 (EXAONE3.5)
     prompt = [
-        
+
     ]
+    
+    start_time = time.time()
+    result = rag_model(
+        prompt,
+        max_new_tokens=1000,  # 답변 생성 최대 토큰 수 제한 
+        temperature=0.2  # 답변 생성 온도 조절 
+    )
+    end_time = time.time()
+    print(f"🔄 [INFO] RAG 응답 생성 시간: {end_time - start_time:.2f}초")
 
-    # 4. LLM을 사용하여 최종 답변 생성 
-    response = await rag_model.generate(prompt)
+    # 답변 형식 정리 
+    answer = result["choices"][0]["text"]
 
-
-    return response
+    return {"answer": answer, "doc_ids": retrieved_doc_ids}
 

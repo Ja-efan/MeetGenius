@@ -91,7 +91,7 @@ async def stt_task(app: FastAPI):
             logger.info(f"Message sent to Django: {message}")
             await send_message(message)
             # RAG 질문 응답
-            answer = await rag.process_query(app=app, query=transcript)
+            answer = await rag.rag_process(app=app, query=transcript)
             message = STTMessage(type="rag", content=answer)
             await send_message(message)
         else:
@@ -127,24 +127,36 @@ async def prepare_meeting(
             logger.error(msg)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
 
+        # 현재 회의 프로젝트 ID 저장
+        app.state.project_id = meeting_info.project_id 
+        print(f"✅ [DEBUG] Project ID: {app.state.project_id}")
+        
         # 프로젝트 관련 collection 생성 및 app_state에 저장
         app.state.project_collection = chromadb_utils.ProjectCollection(
             project_id=meeting_info.project_id,
             app=app
         )
+        # print(f"✅ [DEBUG] Project collection: {app.state.project_collection}")
         
-        app.state.stt_running = llm_utils.load_stt_model(app_state=app)
+        app.state.stt_model = llm_utils.load_stt_model(app_state=app)
+        # print(f"✅ [DEBUG] STT model: {app.state.stt_model}")
         app.state.embedding_model = llm_utils.load_embedding_model(app_state=app)
+        # print(f"✅ [DEBUG] Embedding model: {app.state.embedding_model}")
         app.state.rag_model = llm_utils.load_rag_model(app_state=app)
+        # print(f"✅ [DEBUG] RAG model: {app.state.rag_model}")
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
+        print(f"✅ [DEBUG] is_meeting_ready: {app.state.is_meeting_ready}")
         app.state.stt_running = True  # STT 실행 상태 업데이트
+        print(f"✅ [DEBUG] stt_running: {app.state.stt_running}")
         
         # 안건 관련 문서 상태 초기화 및 저장
         app.state.agenda_docs = {}
+        print(f"✅ [DEBUG] agenda_docs: {app.state.agenda_docs}")
         # meeting_info.agendas 로 변경 (기존 agenda_list → agendas)
         app.state.agenda_list = meeting_info.agendas
+        print(f"✅ [DEBUG] agenda_list: {app.state.agenda_list}")
         for agenda in meeting_info.agendas:
             # 각 안건의 식별자와 제목은 각각 agenda.id, agenda.title 로 접근
             app.state.agenda_docs[agenda.id] = app.state.project_collection.get_agenda_docs(
@@ -266,3 +278,8 @@ async def summarize_meetings(
         return SummaryResponse(meeting_id=meeting_id, summaries=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
+
+@router.post("/rag-test", status_code=status.HTTP_200_OK)
+async def rag_test(query: str, app: FastAPI = Depends(get_app)):
+    answer = await rag.rag_process(app=app, query=query)
+    return answer

@@ -104,13 +104,13 @@ class ProjectCollection:
         return True
 
 
-    def search_documents(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        """검색어(query)와 유사한 문서 검색"""
-        results = self.collection.query(query_texts=[query], n_results=top_k)
-        return [
-            {"id": int(doc_id), "text": text, "metadata": metadata}
-            for doc_id, text, metadata in zip(results["ids"][0], results["documents"][0], results["metadatas"][0])
-        ]
+    def search_documents(self, query_embedding: list, top_k: int = 1):
+        """검색어 임베딩(query_embedding)과 유사한 문서 검색"""
+        results = self.collection.query(
+            query_embeddings=query_embedding,
+            n_results=top_k
+        )
+        return results
 
 
     def update_documents(self, doc_id: str, new_text: str, new_metadata: Dict[str, Any] = None) -> None:
