@@ -15,7 +15,7 @@ from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends,
 # 새로 정의한 스키마 적용 (schemes.meetings 모듈에 새 스키마들을 정의했다고 가정)
 from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails
 from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
-from app.dependencies import get_app_state
+from app.dependencies import get_app, get_app_state
 from app.services import rag, summary
 from app.utils import llm_utils, chromadb_utils
 from dotenv import load_dotenv
@@ -74,9 +74,9 @@ async def send_message(message: STTMessage):
                 detail="메시지 전송 중 오류가 발생했습니다."
             )
 
-async def stt_task(app_state):
+async def stt_task(app: FastAPI):
     """STT 백그라운드 작업"""
-    while app_state.stt_running:
+    while app.state.stt_running:
         # 실제 음성인식 로직 부분 (예시)
         print("STT is running ... (waiting for audio input)")
         
@@ -91,7 +91,7 @@ async def stt_task(app_state):
             logger.info(f"Message sent to Django: {message}")
             await send_message(message)
             # RAG 질문 응답
-            answer = await rag.process_query(app_state=app_state, query=transcript)
+            answer = await rag.process_query(app=app, query=transcript)
             message = STTMessage(type="rag", content=answer)
             await send_message(message)
         else:
@@ -107,7 +107,7 @@ async def prepare_meeting(
     meeting_info: MeetingAgendas, 
     meeting_id: str, 
     background_tasks: BackgroundTasks, 
-    app_state: Any = Depends(get_app_state)
+    app: FastAPI = Depends(get_app)
 ):
     """회의 준비 엔드포인트
 
@@ -128,36 +128,36 @@ async def prepare_meeting(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
 
         # 프로젝트 관련 collection 생성 및 app_state에 저장
-        app_state.project_collection = chromadb_utils.get_project_collection(
+        app.state.project_collection = chromadb_utils.ProjectCollection(
             project_id=meeting_info.project_id,
-            app_state=app_state
+            app=app
         )
         
-        app_state.stt_running = llm_utils.load_stt_model(app_state=app_state)
-        app_state.embedding_model = llm_utils.load_embedding_model(app_state=app_state)
-        app_state.rag_model = llm_utils.load_rag_model(app_state=app_state)
+        app.state.stt_running = llm_utils.load_stt_model(app_state=app)
+        app.state.embedding_model = llm_utils.load_embedding_model(app_state=app)
+        app.state.rag_model = llm_utils.load_rag_model(app_state=app)
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
-        app_state.is_meeting_ready = True
-        app_state.stt_running = True  # STT 실행 상태 업데이트
+        app.state.is_meeting_ready = True
+        app.state.stt_running = True  # STT 실행 상태 업데이트
         
         # 안건 관련 문서 상태 초기화 및 저장
-        app_state.agenda_docs = {}
+        app.state.agenda_docs = {}
         # meeting_info.agendas 로 변경 (기존 agenda_list → agendas)
-        app_state.agenda_list = meeting_info.agendas
+        app.state.agenda_list = meeting_info.agendas
         for agenda in meeting_info.agendas:
             # 각 안건의 식별자와 제목은 각각 agenda.id, agenda.title 로 접근
-            app_state.agenda_docs[agenda.id] = app_state.project_collection.get_agenda_docs(
+            app.state.agenda_docs[agenda.id] = app.state.project_collection.get_agenda_docs(
                 agenda=agenda.title, top_k=3
             )
 
         # 백그라운드 작업 시작
-        background_tasks.add_task(stt_task, app_state=app_state)
+        background_tasks.add_task(stt_task, app=app)
 
-        logger.info(f"Meeting {meeting_id} preparation completed.")
-        logger.info(f"Agenda docs: {app_state.agenda_docs}")
+        print(f"✅ [DEBUG] Meeting {meeting_id} preparation completed.")
+        print(f"✅ [DEBUG] Agenda docs: {app.state.agenda_docs}")
         
-        return PrepareMeetingResponse(result=app_state.is_meeting_ready, message="회의 준비 완료")
+        return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
 
     except HTTPException as he:
         raise he

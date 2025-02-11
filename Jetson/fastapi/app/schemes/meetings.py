@@ -23,7 +23,7 @@ class MeetingAgendas(BaseModel):
     회의 준비 시 입력으로 사용되는 안건 목록 모델.
     프로젝트 식별자와 해당 프로젝트 내 회의에 사용할 안건들을 포함합니다.
     """
-    project_id: str = Field(..., description="프로젝트 식별자")
+    project_id: int = Field(..., description="프로젝트 식별자")
     agendas: List[Agenda] = Field(..., description="회의 안건 목록")
 
 class AgendaDetail(Agenda):
