@@ -2,7 +2,7 @@ import torch
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, BitsAndBytesConfig, PreTrainedTokenizerFast, BartForConditionalGeneration
 from sentence_transformers import SentenceTransformer, models
 import logging
-from llama_cpp import Llama
+# from llama_cpp import Llama
 
 
 # 로그 설정
@@ -48,8 +48,11 @@ def load_embedding_model(app_state):
         word_embedding_model = models.Transformer(model_name_or_path)
         word_embedding_model.auto_model = quantized_model  # 기존 모델을 양자화된 모델로 교체 
 
-        # SentenceTransformer 객체 생성
-        sentence_embedding_model = SentenceTransformer(modules=[word_embedding_model])
+        # Pooling 레이어 추가 (문장 수준의 임베딩을 위해 필수)
+        pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
+
+        # SentenceTransformer 객체 생성 (Transformer와 Pooling을 결합)
+        sentence_embedding_model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
 
         # Tokenizer도 명시적으로 설정
         sentence_embedding_model.tokenizer = tokenizer
