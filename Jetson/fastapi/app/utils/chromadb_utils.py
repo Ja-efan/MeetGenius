@@ -32,14 +32,14 @@ class ProjectCollection:
         system_name = platform.system()
         
         if system_name in ["Windows", "Darwin"]:  # Windows & MacOS (Darwin)
-            print(f"[INFO] Running on {system_name} - Using Local ChromaDB Client")
+            print(f"🔄 [INFO] Running on {system_name} - Using Local ChromaDB Client")
             base_dir = Path(__file__).resolve().parent.parent  # 프로젝트 루트
             db_path = base_dir / "vector_db"
-            print(f"[ChromaDB] 데이터베이스 경로: {str(db_path)}")
+            print(f"✅ [ChromaDB] 데이터베이스 경로: {str(db_path)}")
             return PersistentClient(path=str(db_path))
     
         else:  # Jetson (Linux 기반)
-            print(f"[INFO] Running on {system_name} - Using Remote ChromaDB Server")
+            print(f"🔄 [INFO] Running on {system_name} - Using Remote ChromaDB Server")
             return chromadb.HttpClient(host="chromadb-server", port=8001, ssl=False)  # Jetson에서 ChromaDB 서버에 연결
 
 
@@ -48,7 +48,7 @@ class ProjectCollection:
         
         # FastAPI의 최신 app.state 가져오기
         if not hasattr(self.app.state, "embedding_model"):
-            load_embedding_model(self.app.state)
+            self.app.state.embedding_model = load_embedding_model(self.app)
 
         model = self.app.state.embedding_model  # 최신 embedding_model 가져오기
         
@@ -69,10 +69,10 @@ class ProjectCollection:
         return inserted_ids
 
 
-    def get_documents(self, project_id: str):
+    def get_documents(self, project_id: int):
         """ 모든 문서 조회 """
         documents = self.collection.get(
-            where={"project_id": str(project_id)},
+            where={"project_id": project_id},
             include=["documents", "embeddings", "metadatas"]
         )
 
@@ -85,32 +85,35 @@ class ProjectCollection:
         return documents  # ✅ JSON 변환 가능
     
 
-    def delete_documents(self, document_id: int):
-        """
-        문서 삭제
-        """
-        # 삭제하려는 문서 존재 확인하는 건 projects/delete_documents에서 진행함
-        # 문서 삭제 진행
-        self.collection.delete(ids=[str(document_id)])
+    def delete_documents(self, doc_id: int) -> bool:
+        """특정 문서 ID가 존재하는지 확인하고, 존재하면 삭제 후 True 반환, 없으면 False 반환"""
+        
+        # ChromaDB의 ID는 문자열이므로 변환
+        doc_id_str = str(doc_id)
 
-        # 정상 삭제 여부 확인
-        updated_documents = self.collection.get(include=["documents"])
-        updated_document_ids = [str(doc["id"]) for doc in updated_documents.get("documents", [])]
-        if str(document_id) in updated_document_ids:
-            print(f"❌ [ERROR] Document {document_id} deletion failed.")
-            return False
+        print(f"🔄 [INFO] Deleting document: {doc_id_str}")
+        # 현재 저장된 문서 목록 조회
+        existing_docs = self.collection.get(ids=[doc_id_str], include=["documents"])
+        
+        # 문서가 존재하는지 확인
+        if not existing_docs["documents"]:
+            print(f"❌ [INFO] Document {doc_id} not found.")
+            return False  # 문서가 존재하지 않음
 
-        print(f"✅ [INFO] Document {document_id} deleted successfully.")
-        return True
+        # 문서 삭제
+        self.collection.delete(ids=[doc_id_str])
+        print(f"✅ [INFO] Deleted document: {doc_id}")
+        
+        return True  # 삭제 성공
 
 
-    def search_documents(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        """검색어(query)와 유사한 문서 검색"""
-        results = self.collection.query(query_texts=[query], n_results=top_k)
-        return [
-            {"id": int(doc_id), "text": text, "metadata": metadata}
-            for doc_id, text, metadata in zip(results["ids"][0], results["documents"][0], results["metadatas"][0])
-        ]
+    def search_documents(self, query_embedding: list, top_k: int = 1):
+        """검색어 임베딩(query_embedding)과 유사한 문서 검색"""
+        results = self.collection.query(
+            query_embeddings=query_embedding,
+            n_results=top_k
+        )
+        return results
 
 
     def update_documents(self, doc_id: str, new_text: str, new_metadata: Dict[str, Any] = None) -> None:
@@ -139,5 +142,7 @@ class ProjectCollection:
         # 문서 id 반환 
         doc_ids = results["ids"][0]
 
-
+        # 문서 id 반환 형식 변환
+        doc_ids = [int(doc_id) for doc_id in doc_ids]
+        
         return doc_ids
