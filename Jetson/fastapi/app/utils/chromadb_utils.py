@@ -3,14 +3,19 @@ from pathlib import Path
 from chromadb import PersistentClient
 from app.schemes.documents import DocumentList
 from app.utils.llm_utils import load_embedding_model
+from app.utils import logging_config
 import numpy as np
 import chromadb
 import platform
 from dotenv import load_dotenv
-from typing import Any, Dict, List
+from typing import Any, Dict
+
+# 로깅 설정
+logger = logging_config.app_logger
 
 # 환경 변수 로드
 load_dotenv()
+
 
 class ProjectCollection:
     def __init__(self, project_id: int, app: FastAPI):
@@ -32,14 +37,14 @@ class ProjectCollection:
         system_name = platform.system()
         
         if system_name in ["Windows", "Darwin"]:  # Windows & MacOS (Darwin)
-            print(f"🔄 [INFO] Running on {system_name} - Using Local ChromaDB Client")
+            logger.info(f"Running on {system_name} - Using Local ChromaDB Client")
             base_dir = Path(__file__).resolve().parent.parent  # 프로젝트 루트
             db_path = base_dir / "vector_db"
-            print(f"✅ [ChromaDB] 데이터베이스 경로: {str(db_path)}")
+            logger.info(f"ChromaDB 데이터베이스 경로: {str(db_path)}")
             return PersistentClient(path=str(db_path))
     
         else:  # Jetson (Linux 기반)
-            print(f"🔄 [INFO] Running on {system_name} - Using Remote ChromaDB Server")
+            logger.info(f"Running on {system_name} - Using Remote ChromaDB Server")
             return chromadb.HttpClient(host="chromadb-server", port=8001, ssl=False)  # Jetson에서 ChromaDB 서버에 연결
 
 
@@ -73,16 +78,14 @@ class ProjectCollection:
         """ 모든 문서 조회 """
         documents = self.collection.get(
             where={"project_id": project_id},
-            include=["documents", "embeddings", "metadatas"]
+            include=["documents", "metadatas"]
         )
 
         # 🔥 numpy array → list 변환 (JSON 직렬화 가능하도록 변환)
         if "embeddings" in documents and isinstance(documents["embeddings"], np.ndarray):
             documents["embeddings"] = documents["embeddings"].tolist()
 
-        print(f"✅ [DEBUG] Retrieved documents: {documents}")  # 디버깅 출력
-
-        return documents  # ✅ JSON 변환 가능
+        return documents 
     
 
     def delete_documents(self, doc_id: int) -> bool:
@@ -91,18 +94,18 @@ class ProjectCollection:
         # ChromaDB의 ID는 문자열이므로 변환
         doc_id_str = str(doc_id)
 
-        print(f"🔄 [INFO] Deleting document: {doc_id_str}")
+        logger.info(f"Deleting document: {doc_id_str}")
         # 현재 저장된 문서 목록 조회
         existing_docs = self.collection.get(ids=[doc_id_str], include=["documents"])
         
         # 문서가 존재하는지 확인
         if not existing_docs["documents"]:
-            print(f"❌ [INFO] Document {doc_id} not found.")
+            logger.info(f"Document {doc_id} not found.")    
             return False  # 문서가 존재하지 않음
 
         # 문서 삭제
         self.collection.delete(ids=[doc_id_str])
-        print(f"✅ [INFO] Deleted document: {doc_id}")
+        logger.info(f"Deleted document: {doc_id}")
         
         return True  # 삭제 성공
 
