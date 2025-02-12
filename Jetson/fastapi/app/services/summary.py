@@ -8,6 +8,11 @@ import torch
 from app.utils.llm_utils import load_summary_model
 from typing import Any
 from app.schemes.meetings import AgendaSummary, AgendaDetail
+from app.utils import logging_config
+
+# 로깅 설정
+logger = logging_config.setup_logger(__name__)
+
 
 async def process_query(agenda_items: List[AgendaDetail], app_state: Any) -> List[Dict[str, str]]:
     """
@@ -19,7 +24,7 @@ async def process_query(agenda_items: List[AgendaDetail], app_state: Any) -> Lis
     Returns:
         List[AgendaSummary]: 안건별 요약된 응답
     """
-    print("Agenda Items in process_query:", agenda_items)  # 여기서도 로그 찍어봄
+    logger.info("Agenda Items in process_query:", agenda_items) # 안건 아이템 로그
 
     summaries = []
     # 요약 모델이 제대로 로드되었는지 확인
@@ -63,4 +68,5 @@ async def process_query(agenda_items: List[AgendaDetail], app_state: Any) -> Lis
         return summaries
 
     except Exception as e:
+        logger.error(f"Summary process failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"요약 과정 중 오류 발생: {str(e)}")
