@@ -83,7 +83,7 @@ async def stt_task(app: FastAPI):
             logger.info(f"Message sent to Django: {message}")
             await send_message(message)
             # RAG 질문 응답
-            answer = await rag.rag_process(app=app, query=transcript)
+            answer = await rag.rag_process(query=transcript, app=app)
             message = STTMessage(type="rag", content=answer)
             await send_message(message)
         else:

@@ -11,7 +11,8 @@ router = APIRouter(
 def test():
     return {"message": "Test Endpoints"}
 
-@router.post("/rag", status_code=status.HTTP_200_OK)
-async def rag_test(query: str, app: FastAPI = Depends(get_app)):
+@router.post("/rag/{project_id}", status_code=status.HTTP_200_OK)
+async def rag_test(query: str, project_id: int, app: FastAPI = Depends(get_app)):
+    app.state.project_id = project_id
     answer = await rag.rag_process(app=app, query=query)
     return answer
