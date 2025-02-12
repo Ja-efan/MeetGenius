@@ -155,7 +155,7 @@ async def prepare_meeting(
         # 백그라운드 작업 시작
         # background_tasks.add_task(stt_task, app=app)  # test/dev/jetson 주석 처리
 
-        logger.info(f"Meeting {meeting_id} preparation completed.")
+        logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
         
         return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
@@ -201,14 +201,15 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
             docs = agenda_docs.get(agenda.id, [])
             # <다음 안건>: 기존 안건인 경우
             if docs:
-                logger.info(f"Return existing agenda docs for agenda '{agenda.id}'")
+                logger.info(f"Processing existing agenda '{agenda.id}'")
+                logger.info(f"Documents for agenda '{agenda.id}': {docs}")
                 return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
             # <안건 추가>: 신규 안건인 경우
             else:
-                logger.info(f"New agenda processed: '{agenda.id}'")
+                logger.info(f"Processing new agenda '{agenda.id}'")
                 new_agenda_title = agenda.title  # 신규 안건 제목
                 docs = app.state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)
-                logger.info(f"New agenda docs: {docs}")
+                logger.info(f"Documents for agenda '{agenda.id}': {docs}")
                 return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
 
     except Exception as e:
