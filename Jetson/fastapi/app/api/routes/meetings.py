@@ -300,8 +300,3 @@ async def summarize_meetings(
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
-
-@router.post("/rag-test", status_code=status.HTTP_200_OK)
-async def rag_test(query: str, app: FastAPI = Depends(get_app)):
-    answer = await rag.rag_process(app=app, query=query)
-    return answer
