@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from app.utils import chromadb_utils, llm_utils, logging_config
 
 # 로깅 설정
-logger = logging_config.setup_logger(__name__)
+logger = logging_config.app_logger
 
 
 async def rag_process(query: str, app: FastAPI):

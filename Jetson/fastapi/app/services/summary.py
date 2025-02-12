@@ -11,7 +11,7 @@ from app.schemes.meetings import AgendaSummary, AgendaDetail
 from app.utils import logging_config
 
 # 로깅 설정
-logger = logging_config.setup_logger(__name__)
+logger = logging_config.app_logger
 
 
 async def process_query(agenda_items: List[AgendaDetail], app_state: Any) -> List[Dict[str, str]]:

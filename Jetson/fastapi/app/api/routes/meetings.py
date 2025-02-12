@@ -12,19 +12,19 @@ import asyncio
 from typing import Any
 
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
-# 새로 정의한 스키마 적용 (schemes.meetings 모듈에 새 스키마들을 정의했다고 가정)
 from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails, AgendaDetail
 from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
 from app.dependencies import get_app, get_app_state
 from app.services import rag, summary
-from app.utils import llm_utils, chromadb_utils
+from app.utils import llm_utils, chromadb_utils, logging_config
 from dotenv import load_dotenv
 
-
+# 로깅 설정
+logger = logging_config.app_logger
 
 load_dotenv()
 
-DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 url 
+DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
 STT_MODEL = os.getenv('STT_MODEL')
 EMB_MODEL = os.getenv('EMB_MODEL')
 RAG_MODEL = os.getenv('RAG_MODEL')
@@ -44,14 +44,6 @@ def set_stt_running(app: FastAPI, status: bool):
 
 trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
 
-######################################################### 로깅 설정 #########################################################
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-###########################################################################################################################
 
 async def send_message(message: STTMessage):
     """Jetson Orin Nano(FastAPI) -> Web(Django) 메시지 전송 함수
@@ -78,7 +70,7 @@ async def stt_task(app: FastAPI):
     """STT 백그라운드 작업"""
     while app.state.stt_running:
         # 실제 음성인식 로직 부분 (예시)
-        print("STT is running ... (waiting for audio input)")
+        logger.info("STT is running ... (waiting for audio input)")
         
         # 음성인식 로직 부분
         transcript = "음성인식 테스트 중 입니다."  # 실제 로직 적용 필요
@@ -130,34 +122,30 @@ async def prepare_meeting(
 
         # 현재 회의 프로젝트 ID 저장
         app.state.project_id = meeting_info.project_id 
-        print(f"✅ [DEBUG] Project ID: {app.state.project_id}")
+        logger.info(f"Project ID: {app.state.project_id}")
         
         # 프로젝트 관련 collection 생성 및 app_state에 저장
         app.state.project_collection = chromadb_utils.ProjectCollection(
             project_id=meeting_info.project_id,
             app=app
         )
-        # print(f"✅ [DEBUG] Project collection: {app.state.project_collection}")
         
         app.state.stt_model = llm_utils.load_stt_model(app=app)
-        # print(f"✅ [DEBUG] STT model: {app.state.stt_model}")
         app.state.embedding_model = llm_utils.load_embedding_model(app=app)
-        # print(f"✅ [DEBUG] Embedding model: {app.state.embedding_model}")
         app.state.rag_model = llm_utils.load_rag_model(app=app)
-        # print(f"✅ [DEBUG] RAG model: {app.state.rag_model}")
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
-        print(f"✅ [DEBUG] is_meeting_ready: {app.state.is_meeting_ready}")
+        logger.info(f"is_meeting_ready: {app.state.is_meeting_ready}")
         app.state.stt_running = True  # STT 실행 상태 업데이트
-        print(f"✅ [DEBUG] stt_running: {app.state.stt_running}")
+        logger.info(f"stt_running: {app.state.stt_running}")
         
         # 안건 관련 문서 상태 초기화 및 저장
         app.state.agenda_docs = {}
-        print(f"✅ [DEBUG] agenda_docs: {app.state.agenda_docs}")
+        logger.info(f"agenda_docs: {app.state.agenda_docs}")
         # meeting_info.agendas 로 변경 (기존 agenda_list → agendas)
         app.state.agenda_list = meeting_info.agendas
-        print(f"✅ [DEBUG] agenda_list: {app.state.agenda_list}")
+        logger.info(f"agenda_list: {app.state.agenda_list}")
         for agenda in meeting_info.agendas:
             # 각 안건의 식별자와 제목은 각각 agenda.id, agenda.title 로 접근
             app.state.agenda_docs[agenda.id] = app.state.project_collection.get_agenda_docs(
@@ -165,10 +153,10 @@ async def prepare_meeting(
             )
 
         # 백그라운드 작업 시작
-        # background_tasks.add_task(stt_task, app=app)  # test/next-agenda 테스트 주석 처리
+        # background_tasks.add_task(stt_task, app=app)  # test/dev/jetson 주석 처리
 
-        print(f"✅ [DEBUG] Meeting {meeting_id} preparation completed.")
-        print(f"✅ [DEBUG] Agenda docs: {app.state.agenda_docs}")
+        logger.info(f"Meeting {meeting_id} preparation completed.")
+        logger.info(f"Agenda docs: {app.state.agenda_docs}")
         
         return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
 
@@ -217,9 +205,10 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
                 return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
             # <안건 추가>: 신규 안건인 경우
             else:
+                logger.info(f"New agenda processed: '{agenda.id}'")
                 new_agenda_title = agenda.title  # 신규 안건 제목
                 docs = app.state.project_collection.get_agenda_docs(agenda=new_agenda_title, top_k=3)
-                logger.info(f"New agenda processed: '{agenda.id}'")
+                logger.info(f"New agenda docs: {docs}")
                 return NextAgendaResponse(stt_running=app.state.stt_running, agenda_docs=docs)
 
     except Exception as e:
@@ -232,33 +221,51 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
 
 @router.post("/{meeting_id}/end", status_code=status.HTTP_200_OK)
 async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
+    """회의 종료 엔드포인트
+    STT 중지, 관련 모델 언로드, 앱 상태에서 필요없는 것들 삭제, 메모리 정리 후 회의 종료 처리
+    
+    Args:
+        meeting_id (int): 회의 ID
+        app (FastAPI, optional): FastAPI 앱 인스턴스. Defaults to Depends(get_app).
+
+    Raises:
+        HTTPException: 예외 발생 시 예외 처리 
+
+    Returns:
+        EndMeetingResponse: 회의 종료 응답
+    """
     try:
         # STT 종료 처리
         if hasattr(app.state, "stt_running") and is_stt_running(app):
             set_stt_running(app, False)
 
-            # 관련 모델 언로드
+            # 관련 모델 언로드: app.state 에 저장된 모델들에 대한 참조 삭제 
             llm_utils.unload_models(app=app)
             
-            # 앱 상태에서 필요없는 것들 삭제
-            if hasattr(app.state, "project_collection"):
-                del app.state.project_collection
-            if hasattr(app.state, "is_meeting_ready"):
-                del app.state.is_meeting_ready
+            # 추가로 필요 없는 상태 값들도 삭제 
+            for attr in ["project_collection", "is_meeting_ready", "agenda_docs", "agenda_list"]:
+                if hasattr(app.state, attr):
+                    logger.info(f"🔄 [INFO] Deleting attribute: {attr}")
+                    delattr(app.state, attr)
 
             # 메모리 정리
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
             gc.collect()
-
+            if torch.cuda.is_available():
+                torch.cuda.ipc_collect()  # IPC 캐시 정리 
+                torch.cuda.empty_cache()  # VRAM  메모리 캐시 정리 
+                
+            logger.info("Memory cleaned up.")
             return EndMeetingResponse(meeting_id=meeting_id, stt_running=False)
+        
         else:
+            logger.info("STT is not running.")
             raise HTTPException(
                 status_code=400,
                 detail="STT가 실행되지 않았습니다."
             )
 
     except Exception as e:
+        logger.exception(f"Exception occured in end_meeting.\n{str(e)}")
         raise HTTPException(
             status_code=500, 
             detail=f"회의 종료 중 오류 발생: {str(e)}"

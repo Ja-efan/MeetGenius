@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from typing import Any, Dict
 
 # 로깅 설정
-logger = logging_config.setup_logger(__name__)
+logger = logging_config.app_logger
 
 # 환경 변수 로드
 load_dotenv()
