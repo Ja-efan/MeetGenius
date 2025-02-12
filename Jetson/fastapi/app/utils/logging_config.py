@@ -14,7 +14,7 @@ def setup_logger(name: str):
     handler = logging.StreamHandler()
     
     formatter = colorlog.ColoredFormatter(
-        "%(log_color)s%(levelname)-8s - %(asctime)s - %(name)s -  %(message)s",
+       "%(log_color)s%(levelname)-8s - %(asctime)s - %(filename)s:%(lineno)d - %(name)s -  %(message)s",
         log_colors={
             'DEBUG': 'blue',
             'INFO': 'green',
