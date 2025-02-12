@@ -47,7 +47,8 @@ def load_embedding_model(app: FastAPI):
         # 양자화 모델 로드 
         quantized_model = AutoModel.from_pretrained(model_name_or_path,
                                           quantization_config=quantization_config,
-                                          cache_dir=LLM_MODELS_DIR / "huggingface-caches")
+                                          cache_dir=LLM_MODELS_DIR / "huggingface-caches",
+                                          low_cpu_mem_usage=True)
         # Tokenizer 로드 
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
