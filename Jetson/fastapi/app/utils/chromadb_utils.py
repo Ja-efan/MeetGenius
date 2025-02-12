@@ -85,23 +85,26 @@ class ProjectCollection:
         return documents  # ✅ JSON 변환 가능
     
 
-    def delete_documents(self, document_id: int):
-        """
-        문서 삭제
-        """
-        # 삭제하려는 문서 존재 확인하는 건 projects/delete_documents에서 진행함
-        # 문서 삭제 진행
-        self.collection.delete(ids=[str(document_id)])
+    def delete_documents(self, doc_id: int) -> bool:
+        """특정 문서 ID가 존재하는지 확인하고, 존재하면 삭제 후 True 반환, 없으면 False 반환"""
+        
+        # ChromaDB의 ID는 문자열이므로 변환
+        doc_id_str = str(doc_id)
 
-        # 정상 삭제 여부 확인
-        updated_documents = self.collection.get(include=["documents"])
-        updated_document_ids = [str(doc["id"]) for doc in updated_documents.get("documents", [])]
-        if str(document_id) in updated_document_ids:
-            print(f"❌ [ERROR] Document {document_id} deletion failed.")
-            return False
+        print(f"🔄 [INFO] Deleting document: {doc_id_str}")
+        # 현재 저장된 문서 목록 조회
+        existing_docs = self.collection.get(ids=[doc_id_str], include=["documents"])
+        
+        # 문서가 존재하는지 확인
+        if not existing_docs["documents"]:
+            print(f"❌ [INFO] Document {doc_id} not found.")
+            return False  # 문서가 존재하지 않음
 
-        print(f"✅ [INFO] Document {document_id} deleted successfully.")
-        return True
+        # 문서 삭제
+        self.collection.delete(ids=[doc_id_str])
+        print(f"✅ [INFO] Deleted document: {doc_id}")
+        
+        return True  # 삭제 성공
 
 
     def search_documents(self, query_embedding: list, top_k: int = 1):
