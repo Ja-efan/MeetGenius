@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
 # 새로 정의한 스키마 적용 (schemes.meetings 모듈에 새 스키마들을 정의했다고 가정)
-from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails
+from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails, AgendaDetail
 from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
 from app.dependencies import get_app, get_app_state
 from app.services import rag, summary
@@ -283,10 +283,13 @@ async def summarize_meetings(
     """
     if item.agendas:
         # 각 안건 정보를 dict로 변환하여 요약 처리 함수에 전달
-        agenda_items = [agenda for agenda in item.agendas]
+        agenda_items = [
+            AgendaDetail(id=agenda.id, title=agenda.title, content=agenda.content) 
+            for agenda in item.agendas
+        ]        
         summaries = await summary.process_query(agenda_items, app_state)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
-        return SummaryResponse(meeting_id=meeting_id, summaries=summaries)
+        return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
 

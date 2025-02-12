@@ -110,23 +110,27 @@ def load_summary_model(app: FastAPI):
     Summary 모델 로드 후 반환
     """
     if not hasattr(app.state, "summary_model"):
+        try:
+            print(f"Loading summary model ...")
 
-        print(f"Loading summary model ...")
+            # 요약 모델 로딩
+            model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
+            tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
+            model = BartForConditionalGeneration.from_pretrained(model_name)
 
-        # 요약 모델 로딩
-        model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
-        tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
-        model = BartForConditionalGeneration.from_pretrained(model_name)
+            # 모델과 토크나이저를 app.state에 저장
+            app.state.summary_model = {
+                'tokenizer': tokenizer,
+                'model': model
+            }
 
-        # 모델과 토크나이저를 app.state에 저장
-        app.state.summary_model = {
-            'tokenizer': tokenizer,
-            'model': model
-        }
+            logging.info("Summary model loaded successfully!")
 
-
-        logging.info("Summary model loaded successfully!")
-
+        except Exception as e:
+            logging.error(f"요약 모델 로드 실패: {str(e)}")
+            return None
+        
+    return app.state.summary_model
 
 
 def unload_models(app: FastAPI):
