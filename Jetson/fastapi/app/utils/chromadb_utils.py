@@ -29,7 +29,8 @@ class ProjectCollection:
         self.app = app  # FastAPI 인스턴스 저장
         
         self.client = self._get_client()
-        self.collection = self.client.get_or_create_collection(self.project_id)
+        self.collection = self.client.get_or_create_collection(self.project_id,
+                                                               metadata={"hnsw:space": "cosine"})
 
     
     def _get_client(self):
