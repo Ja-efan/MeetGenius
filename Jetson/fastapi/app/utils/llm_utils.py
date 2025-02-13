@@ -108,32 +108,30 @@ def load_rag_model(app: FastAPI,
         raise e
 
 
-def load_summary_model(app: FastAPI):
+def load_summary_model(app: FastAPI, 
+                       summary_model_name="llama-3.2-Korean-Bllossom-3B-Q4_K_M.gguf",
+                       n_gpu_layers: int=-1):
     """
     Summary 모델 로드 후 반환
     """
-    if not hasattr(app.state, "summary_model"):
-        try:
-            logger.info(f"Loading summary model ...")
+    try:
+        logger.info(f"Loading Summary model: {summary_model_name}...")
+        llama_cpp_dir = LLM_MODELS_DIR / "llama-cpp"
 
-            # 요약 모델 로딩
-            model_name = 'gangyeolkim/kobart-korean-summarizer-v2'
-            tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
-            model = BartForConditionalGeneration.from_pretrained(model_name)
+        # 모델 로드
+        summary_model = Llama(
+            model_path=str(llama_cpp_dir / summary_model_name), 
+            n_ctx=2048,  # 컨텍스트 윈도우 크기
+            n_gpu_layers=n_gpu_layers,
+            verbose=False)
 
-            # 모델과 토크나이저를 app.state에 저장
-            app.state.summary_model = {
-                'tokenizer': tokenizer,
-                'model': model
-            }
+        logger.info(f"Summary model successfully loaded!")
 
-            logger.info("Summary model loaded successfully!")
+        return summary_model
 
-        except Exception as e:  
-            logger.error(f"Failed to load summary model: {str(e)}")
-            return None
-        
-    return app.state.summary_model
+    except Exception as e:
+        logger.error(f"Failed to load Summary model {summary_model_name}: {e}")
+        return None
 
 
 def unload_models(app: FastAPI):
