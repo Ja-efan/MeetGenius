@@ -83,7 +83,7 @@ async def stt_task(app: FastAPI):
             logger.info(f"Message sent to Django: {message}")
             await send_message(message)
             # RAG 질문 응답
-            answer = await rag.rag_process(app=app, query=transcript)
+            answer = await rag.rag_process(query=transcript, app=app)
             message = STTMessage(type="rag", content=answer)
             await send_message(message)
         else:
@@ -300,8 +300,3 @@ async def summarize_meetings(
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
-
-@router.post("/rag-test", status_code=status.HTTP_200_OK)
-async def rag_test(query: str, app: FastAPI = Depends(get_app)):
-    answer = await rag.rag_process(app=app, query=query)
-    return answer

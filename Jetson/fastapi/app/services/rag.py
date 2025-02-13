@@ -2,11 +2,45 @@
     RAG 관련 함수 모듈 
 """
 import time
+import re
+import json
 from fastapi import FastAPI, HTTPException
 from app.utils import chromadb_utils, llm_utils, logging_config
 
 # 로깅 설정
 logger = logging_config.app_logger
+
+def extract_json_from_string(input_str: str) -> dict:
+    """
+    주어진 문자열에서 'json' 키워드 뒤에 있는 JSON 객체를 추출하여 파싱한 후,
+    Python의 dict 객체로 반환합니다.
+    
+    매개변수:
+        input_str (str): 파싱할 문자열.
+        
+    반환값:
+        dict: 파싱된 JSON 데이터.
+        
+    예외:
+        ValueError: 문자열 내에서 JSON 객체를 찾지 못하거나 JSON 파싱에 실패한 경우.
+    """
+    # 'json' 키워드 이후에 나오는 JSON 객체를 찾기 위한 정규표현식.
+    # DOTALL 옵션을 사용하여 개행 문자도 포함하도록 합니다.
+    pattern = r"json\s*(\{.*\})"
+    match = re.search(pattern, input_str, re.DOTALL)
+    
+    if not match:
+        logger.error(f"Cannot find JSON object in the input string.")
+        return input_str
+    
+    json_str = match.group(1)
+    
+    try:
+        parsed_data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON 파싱에 실패했습니다: {e}")
+    
+    return parsed_data
 
 
 async def rag_process(query: str, app: FastAPI):
@@ -19,26 +53,32 @@ async def rag_process(query: str, app: FastAPI):
     Returns:
         str: RAG 응답 (검색된 문서 기반 생성)
     """
-
     
     # 필요한 모델과 DB가 로드되었는지 확인 
     if not hasattr(app.state, "project_collection"):
-        logger.info(f"Project collection not found in app.state, loading...")
+        logger.info(f"Project collection not found in app.state, loading ... (project_id: '{app.state.project_id}')")
         app.state.project_collection = chromadb_utils.ProjectCollection(
-            project_id=app.state.project_id,
+            project_id=str(app.state.project_id),
             app=app
         )
         logger.info(f"Project collection loaded successfully!")
+    elif app.state.project_collection.project_id != str(app.state.project_id):
+        logger.info(f"Project collection project_id mismatch, reloading ... (project_id: '{app.state.project_id}')")
+        app.state.project_collection = chromadb_utils.ProjectCollection(
+            project_id=str(app.state.project_id),
+            app=app
+        )
+        logger.info(f"Project collection reloaded successfully!")
         
     # 임베딩 모델 로드 
     if not hasattr(app.state, "embedding_model"):
         logger.info(f"Embedding model not found in app.state, loading...")
-        app.state.embedding_model = llm_utils.load_embedding_model(app_state=app)
+        app.state.embedding_model = llm_utils.load_embedding_model(app=app)
         
     # RAG 모델 로드 
     if not hasattr(app.state, "rag_model"):
         logger.info(f"RAG model not found in app.state, loading...")
-        app.state.rag_model = llm_utils.load_rag_model(app_state=app)
+        app.state.rag_model = llm_utils.load_rag_model(app=app)
         
     # 필요한 모델과 DB 가져오기 
     project_collection = app.state.project_collection
@@ -59,24 +99,46 @@ async def rag_process(query: str, app: FastAPI):
     # ChroaaDB에서 관련 문서 검색 (Top-K 검색)
     search_results = project_collection.search_documents(query_embedding=query_embedding, top_k=1)
     retrieved_content = search_results["documents"][0]
-    retrieved_doc_ids = search_results["ids"][0]
+    retrieved_doc_ids = [int(id) for id in search_results["ids"][0]]
+    
     
     # 프롬프트 구성 (EXAONE3.5)
-    prompt = [
+    prompt = f"""
+당신은 LG AI Research의 EXAONE 모델입니다. 현재 'Ondevice AI Meeting Copilot' 프로젝트의 일원으로, 제공된 문서 내용을 바탕으로 회의에서 활용할 정확하고 간결한 한글 답변을 작성해 주세요.
 
-    ]
-    
+[지침]
+1. 문서에 명시된 수치 및 기술 정보를 그대로 반영하며, 임의 추정치는 사용하지 마세요.
+2. 문서에 없는 정보가 필요할 경우 반드시 "추가 정보가 필요합니다. 문서에서 구체적 정보는 제공되지 않았습니다."라고 기재하세요.
+3. 답변은 아래 세 필드로 구성합니다.
+   - "답변 요약": 문서의 핵심 내용을 간략하게 요약합니다.
+   - "주요 정보": 문서에 명시된 수치나 기술 정보를 정확히 기재합니다. (해당 정보가 없으면 위 문구를 사용하세요.)
+   - "세부 내용": 문서에 언급된 추가 사례나 절차, 효과 등 보충 설명을 간단하게 서술합니다. 필요하면 "위 문서를 참조하면…" 등의 연결 문구를 사용할 수 있습니다.
+4. 출력은 반드시 하나의 문자열이어야 하며, **"json "**으로 시작한 후 바로 JSON 객체가 이어져야 합니다.  
+   마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈이나 공백은 포함하지 마세요.
+
+사용자 질문: {query}
+
+관련 문서:
+{retrieved_content}
+
+출력 예시:
+json {{"답변 요약": "<핵심 요약>", "주요 정보": "<수치 및 기술 정보 또는 '추가 정보가 필요합니다. 문서에서 구체적 정보는 제공되지 않았습니다.'>", "세부 내용": "<보충 설명>"}}
+"""
+
+
     start_time = time.time()
     result = rag_model(
         prompt,
-        max_new_tokens=1000,  # 답변 생성 최대 토큰 수 제한 
-        temperature=0.2  # 답변 생성 온도 조절 
+        max_tokens=1000,  # 답변 생성 최대 토큰 수 제한 
+        temperature=0.3  # 답변 생성 온도 조절 
     )
     end_time = time.time()
     logger.info(f"RAG 응답 생성 시간: {end_time - start_time:.2f}초")
 
     # 답변 형식 정리 
     answer = result["choices"][0]["text"]
+    
+    answer_json = extract_json_from_string(answer)
 
-    return {"answer": answer, "doc_ids": retrieved_doc_ids}
+    return {"question": query, "answer": answer_json, "doc_ids": retrieved_doc_ids}
 

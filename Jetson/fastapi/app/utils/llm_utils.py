@@ -83,7 +83,7 @@ def load_rag_model(app: FastAPI,
         # 모델 로드
         rag_model = Llama(
             model_path=str(llama_cpp_dir / rag_model_name), 
-            n_ctx=32768,  # 컨텍스트 윈도우 크기 (입력 프롬프트 토큰 최대 2048)
+            n_ctx=2048,  # 컨텍스트 윈도우 크기 (입력 프롬프트 최대 토큰 수)
             n_gpu_layers=n_gpu_layers,
             verbose=False)
 
