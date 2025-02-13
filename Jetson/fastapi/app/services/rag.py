@@ -30,7 +30,8 @@ def extract_json_from_string(input_str: str) -> dict:
     match = re.search(pattern, input_str, re.DOTALL)
     
     if not match:
-        raise ValueError("문자열에서 JSON 객체를 찾을 수 없습니다.")
+        logger.error(f"Cannot find JSON object in the input string.")
+        return input_str
     
     json_str = match.group(1)
     
@@ -103,17 +104,17 @@ async def rag_process(query: str, app: FastAPI):
     
     # 프롬프트 구성 (EXAONE3.5)
     prompt = f"""
-당신은 LG AI Research의 EXAONE 모델입니다. 현재 'Ondevice AI Meeting Copilot' 프로젝트의 일원으로, 제공된 문서에 기반해 정확하고 간결한 한글 답변을 작성해야 합니다.
+당신은 LG AI Research의 EXAONE 모델입니다. 현재 'Ondevice AI Meeting Copilot' 프로젝트의 일원으로, 제공된 문서 내용을 바탕으로 회의에서 활용할 정확하고 간결한 한글 답변을 작성해 주세요.
 
-[규칙]
-1. 문서에 명시된 수치 외 임의 추정 수치는 사용하지 않습니다.
-2. 문서에 없는 정보가 필요하면 '추가 정보가 필요합니다'와 "문서에서 구체적 수치는 제공되지 않았습니다"를 함께 기재하십시오.
-3. 답변은 반드시 아래 세 필드로 구성합니다.
-   - "답변 요약": 문서의 핵심을 간략히 요약.
-   - "주요 수치 정보": 문서에 수치가 있으면 그대로 기재, 없으면 "추가 정보가 필요합니다. 문서에서 구체적 수치는 제공되지 않았습니다."라고 작성.
-   - "세부 내용": 수치의 역할/효과 등 보충 설명(수치가 있다면 "구체적 수치는 제공되지 않았다"라는 문구는 사용하지 않습니다).
-4. 출력은 오직 하나의 문자열이어야 하며, 반드시 **"json "**으로 시작한 후 바로 JSON 객체가 이어져야 합니다.  
-   마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈이나 공백은 절대 포함하지 마십시오.
+[지침]
+1. 문서에 명시된 수치 및 기술 정보를 그대로 반영하며, 임의 추정치는 사용하지 마세요.
+2. 문서에 없는 정보가 필요할 경우 반드시 "추가 정보가 필요합니다. 문서에서 구체적 정보는 제공되지 않았습니다."라고 기재하세요.
+3. 답변은 아래 세 필드로 구성합니다.
+   - "답변 요약": 문서의 핵심 내용을 간략하게 요약합니다.
+   - "주요 정보": 문서에 명시된 수치나 기술 정보를 정확히 기재합니다. (해당 정보가 없으면 위 문구를 사용하세요.)
+   - "세부 내용": 문서에 언급된 추가 사례나 절차, 효과 등 보충 설명을 간단하게 서술합니다. 필요하면 "위 문서를 참조하면…" 등의 연결 문구를 사용할 수 있습니다.
+4. 출력은 반드시 하나의 문자열이어야 하며, **"json "**으로 시작한 후 바로 JSON 객체가 이어져야 합니다.  
+   마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈이나 공백은 포함하지 마세요.
 
 사용자 질문: {query}
 
@@ -121,11 +122,8 @@ async def rag_process(query: str, app: FastAPI):
 {retrieved_content}
 
 출력 예시:
-json {{"답변 요약": "<핵심 요약>", "주요 수치 정보": "<수치 정보 또는 '추가 정보가 필요합니다. 문서에서 구체적 수치는 제공되지 않았습니다.'>", "세부 내용": "<보충 설명>"}} 
+json {{"답변 요약": "<핵심 요약>", "주요 정보": "<수치 및 기술 정보 또는 '추가 정보가 필요합니다. 문서에서 구체적 정보는 제공되지 않았습니다.'>", "세부 내용": "<보충 설명>"}}
 """
-
-
-
 
 
     start_time = time.time()
@@ -139,7 +137,8 @@ json {{"답변 요약": "<핵심 요약>", "주요 수치 정보": "<수치 정�
 
     # 답변 형식 정리 
     answer = result["choices"][0]["text"]
+    
     answer_json = extract_json_from_string(answer)
 
-    return {"answer": answer_json, "doc_ids": retrieved_doc_ids}
+    return {"question": query, "answer": answer_json, "doc_ids": retrieved_doc_ids}
 
