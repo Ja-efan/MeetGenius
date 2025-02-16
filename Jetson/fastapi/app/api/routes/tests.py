@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, FastAPI, status
-from app.services import rag
+import httpx
+from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
+from app.services import rag, summary
+from app.schemes.meetings import AgendaDetail
 from app.dependencies import get_app
 
 router = APIRouter(
@@ -35,3 +37,55 @@ async def rag_test(project_id: int, app: FastAPI = Depends(get_app)):
         answer = await rag.rag_process(app=app, query=query)
         answers.append(answer)
     return answers
+
+
+
+
+
+#==== 회의 요약 테스트 ===
+
+DOCUMENTS_ENDPOINT = "http://localhost:8000/api/v1/projects/{project_id}/documents"  # 프로젝트 기반 문서 조회
+
+@router.post("/summary/{meeting_id}", status_code=status.HTTP_200_OK)
+async def test_summary(meeting_id: int, app: FastAPI = Depends(get_app)):
+    """
+    특정 meeting_id에 해당하는 문서를 조회하고 요약을 수행하는 테스트용 엔드포인트.
+    """
+
+    project_id = 1000  # 🔥 테스트할 프로젝트 ID (실제 환경에서는 요청 값 또는 설정에서 가져와야 함)
+
+    # 프로젝트 문서 조회
+    async with httpx.AsyncClient() as client:
+        response = await client.get(DOCUMENTS_ENDPOINT.format(project_id=project_id))
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="문서 조회에 실패했습니다.")
+
+    document_data = response.json()
+    
+    if "documents" not in document_data or "metadatas" not in document_data["documents"]:
+        raise HTTPException(status_code=400, detail="올바른 문서 데이터가 아닙니다.")
+    
+    documents = document_data["documents"]["documents"]
+    metadatas = document_data["documents"]["metadatas"]
+
+    # meeting_id에 해당하는 문서 필터링
+    agendas = []
+    for idx, metadata in enumerate(metadatas):
+        if metadata.get("meeting_id") == meeting_id:  # 특정 meeting_id에 해당하는 문서만 선택
+            agendas.append(AgendaDetail(
+                id=idx + 1,  # 안건 ID (임시)
+                title=f"회의 안건 {idx + 1}",  # 안건 제목 (임시)
+                content=documents[idx]  # 실제 회의 내용
+            ))
+
+    if not agendas:
+        raise HTTPException(status_code=400, detail=f"회의 ID {meeting_id}에 해당하는 문서가 없습니다.")
+
+    # 요약 수행
+    summaries = await summary.summary_process(agendas, app)
+
+    return {
+        "meeting_id": meeting_id,
+        "summaries": summaries
+    }

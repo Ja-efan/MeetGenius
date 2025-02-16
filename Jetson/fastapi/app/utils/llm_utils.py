@@ -109,7 +109,7 @@ def load_rag_model(app: FastAPI,
 
 
 def load_summary_model(app: FastAPI, 
-                       summary_model_name="llama-3.2-Korean-Bllossom-3B-Q4_K_M.gguf",
+                       summary_model_name="EXAONE-3.5-2.4B-Instruct-Q4_K_M.gguf",
                        n_gpu_layers: int=-1):
     """
     Summary 모델 로드 후 반환
