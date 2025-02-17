@@ -2,23 +2,16 @@
     회의 관련 엔드포인트
 """
 
-import os
-import gc
-import torch 
-import json 
-import httpx
-import logging
-import asyncio
+import os, gc, torch, httpx, asyncio
 from typing import Any
-
 from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException, Depends, status
 from app.schemes.meetings import STTMessage, MeetingAgendas, Agenda, MeetingAgendaDetails, AgendaDetail
 from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, EndMeetingResponse, SummaryResponse
-from app.dependencies import get_app, get_app_state
+from app.dependencies import get_app
 from app.services import rag, summary
 from app.utils import llm_utils, chromadb_utils, logging_config
 from dotenv import load_dotenv
-
+from app.services.audio import Audio_record
 # 로깅 설정
 logger = logging_config.app_logger
 
