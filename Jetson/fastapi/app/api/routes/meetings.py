@@ -15,10 +15,8 @@ from app.services.audio import Audio_record
 # 로깅 설정
 logger = logging_config.app_logger
 
-load_dotenv()
-
-# DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
-DJANGO_URL="http://192.168.0.32:8000/meetings/data_receive/"
+# 장고 STT URL
+DJANGO_URL=os.getenv('DJANGO_URL')
 
 router = APIRouter(
     prefix="/api/v1/meetings",

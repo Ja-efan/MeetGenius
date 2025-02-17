@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from app.services import rag, summary
 from app.schemes.meetings import AgendaDetail
 from app.dependencies import get_app
+from app.utils.chromadb_utils import ProjectCollection, get_chromadb_client
+from app.utils.llm_utils import load_embedding_model, load_rag_model, load_summary_model, unload_models
 
 router = APIRouter(
     prefix="/api/v1/tests",
@@ -89,3 +91,35 @@ async def test_summary(meeting_id: int, app: FastAPI = Depends(get_app)):
         "meeting_id": meeting_id,
         "summaries": summaries
     }
+
+@router.post("/{project_id}", status_code=status.HTTP_200_OK)
+async def test_project_collection(project_id: int, app: FastAPI = Depends(get_app)):
+
+    project_collection = ProjectCollection(project_id=project_id, app=app)
+    return project_collection.get_documents()
+
+
+@router.get("/projects", status_code=status.HTTP_200_OK)
+async def test_project_list(app: FastAPI = Depends(get_app)):
+    chromadb_client = get_chromadb_client()
+    return chromadb_client.list_collections()
+
+@router.get("/embedding", status_code=status.HTTP_200_OK)
+async def test_load_embedding_model(app: FastAPI = Depends(get_app)):
+    embeddings = load_embedding_model()
+    return {"message": "Embedding model loaded successfully!"}
+
+@router.get("/rag", status_code=status.HTTP_200_OK)
+async def test_load_rag_model(app: FastAPI = Depends(get_app)):
+    rag_model = load_rag_model()
+    return {"message": "RAG model loaded successfully!"}
+
+@router.get("/summary", status_code=status.HTTP_200_OK)
+async def test_load_summary_model(app: FastAPI = Depends(get_app)):
+    summary_model = load_summary_model()
+    return {"message": "Summary model loaded successfully!"}
+
+@router.get("/unload", status_code=status.HTTP_200_OK)
+async def test_unload_models(app: FastAPI = Depends(get_app)):
+    unload_models(app)
+    return {"message": "Models unloaded successfully!"}

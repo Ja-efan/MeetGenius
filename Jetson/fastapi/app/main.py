@@ -1,6 +1,11 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from app.api.routes import meetings, projects, tests
 import ctypes
+
 
 app = FastAPI()
 
