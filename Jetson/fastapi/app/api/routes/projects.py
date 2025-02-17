@@ -12,7 +12,7 @@ router = APIRouter(
 logger = logging_config.app_logger
 
 
-@router.post("/{project_id}/documents")
+@router.post("/{project_id}/documents/")
 async def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_app)):
     """
     문서 삽입 
@@ -34,7 +34,7 @@ async def insert_documents(project_id: int, documents:DocumentList, app=Depends(
     return DocumentInsertResponse(success=True, message="문서 삽입 완료", num_inserted=len(inserted_ids), inserted_ids=inserted_ids)
 
 
-@router.get("/{project_id}/documents")
+@router.get("/{project_id}/documents/")
 async def get_documents(project_id: int, app=Depends(get_app)):
     """
     문서 조회 
@@ -50,7 +50,7 @@ async def get_documents(project_id: int, app=Depends(get_app)):
     return {"message": "문서 조회 완료", "documents": documents}   
 
 
-@router.delete("/{project_id}/documents/{document_id}")
+@router.delete("/{project_id}/documents/{document_id}/")
 async def delete_document(project_id: int, document_id: int, app=Depends(get_app)):
     """
     문서 삭제
