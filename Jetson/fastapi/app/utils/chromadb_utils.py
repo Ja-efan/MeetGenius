@@ -25,7 +25,12 @@ class ProjectCollection:
             project_id (int): 프로젝트 ID
             app (FastAPI): FastAPI 인스턴스
         """
-        self.project_id = str(project_id) # ChromaDB는 int 지원하지 않으므로 str으로 변환
+        if len(str(project_id)) < 3 :
+            self.project_id = "000" + str(project_id) # ChromaDB는 int 지원하지 않으므로 str으로 변환
+        else:
+            self.project_id = str(project_id)
+
+        # self.project_id = str(project_id) # ChromaDB는 int 지원하지 않으므로 str으로 변환
         self.app = app  # FastAPI 인스턴스 저장
         
         self.client = self._get_client()
@@ -75,17 +80,11 @@ class ProjectCollection:
         return inserted_ids
 
 
-    def get_documents(self, project_id: int):
+    def get_documents(self):
         """ 모든 문서 조회 """
         documents = self.collection.get(
-            where={"project_id": project_id},
             include=["documents", "metadatas"]
         )
-
-        # 🔥 numpy array → list 변환 (JSON 직렬화 가능하도록 변환)
-        if "embeddings" in documents and isinstance(documents["embeddings"], np.ndarray):
-            documents["embeddings"] = documents["embeddings"].tolist()
-
         return documents 
     
 
@@ -119,14 +118,6 @@ class ProjectCollection:
         )
         return results
 
-
-    def update_documents(self, doc_id: str, new_text: str, new_metadata: Dict[str, Any] = None) -> None:
-        """특정 문서를 수정"""
-        self.collection.update(
-            ids=[doc_id],
-            documents=[new_text],
-            metadatas=[new_metadata if new_metadata is not None else {}]
-        )
 
     def remove_collection(self) -> None:
         """컬렉션 삭제"""
