@@ -9,6 +9,7 @@ class STTMessage(BaseModel):
     """
     type: str = Field(..., description="메시지 타입 (예: 'plain', 'query', 'rag')")
     content: str = Field(..., description="메시지 내용")
+    docs: list | None = Field(..., description="RAG 답변 관련 문서 ID 리스트")
 
 class Agenda(BaseModel):
     """
@@ -44,6 +45,6 @@ class AgendaSummary(BaseModel):
     안건별 회의록 요약 모델.
     각 안건의 id, 제목, 요약 내용 
     """
-    agenda_id: int = Field(..., description="안건 ID")
-    agenda_title: str = Field(..., description="안건 제목")
+    title: str = Field(..., description="안건 제목")
+    original_content: str = Field(..., description="안건 원본 내용")
     summary: str = Field(..., description="안건 요약 내용")
