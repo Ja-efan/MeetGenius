@@ -1,19 +1,19 @@
 services:
   fastapi:
     build:
-      context: ./Jetson/fastapi
+      context: ./fastapi
       dockerfile: Dockerfile
     container_name: fastapi-server
     ports:
       - "8000:8000"
     # 코드 저장소
     volumes:
-      - ./Jetson/fastapi:/fastapi
+      - ./fastapi:/fastapi
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     env_file:
-    - ./Jetson/fastapi/.env  # .env 파일 적용
+    - ./fastapi/.env  # .env 파일 적용
     runtime: nvidia
     networks:
       - app_network_04
@@ -26,13 +26,13 @@ services:
 
   chromadb:
     build:
-      context: ./Jetson/chromaDB
+      context: ./chromaDB
       dockerfile: Dockerfile
     container_name: chromadb-server
     ports:
       - "8001:8001"
     volumes:
-      - ./Jetson/chromaDB/data:/chroma/chroma/
+      - ./chromaDB/data:/chroma/chroma/
     environment:
       - CHROMA_HOST_ADDR=0.0.0.0
       - CHROMA_HOST_PORT=8001   # 여기서 포트를 8001로 지정

@@ -110,3 +110,4 @@ noisereduce
 webrtcvad
 pyaudio
 colorlog
+librosa
