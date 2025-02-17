@@ -3,7 +3,7 @@ from pydantic import BaseModel
 class DocumentMetadata(BaseModel):
     project_id: int
     document_type: int
-    meeting_id: int 
+    meeting_id: int  # 보고서인 경우 미팅 아이디 -1
 
 class Document(BaseModel):
     document_id: int

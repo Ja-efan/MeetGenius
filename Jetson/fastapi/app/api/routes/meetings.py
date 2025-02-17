@@ -17,7 +17,8 @@ logger = logging_config.app_logger
 
 load_dotenv()
 
-DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
+# DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
+DJANGO_URL="http://192.168.0.32:8000/meetings/data_receive/"
 
 router = APIRouter(
     prefix="/api/v1/meetings",
@@ -159,6 +160,9 @@ async def prepare_meeting(
         background_tasks.add_task(stt_task, app=app)
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
+
+        logger.info(f"##########################################################")
+
         
         return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
 
