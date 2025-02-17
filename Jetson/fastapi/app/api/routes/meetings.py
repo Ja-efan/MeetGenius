@@ -25,9 +25,6 @@ logger = logging_config.app_logger
 load_dotenv()
 
 DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
-STT_MODEL = os.getenv('STT_MODEL')
-EMB_MODEL = os.getenv('EMB_MODEL')
-RAG_MODEL = os.getenv('RAG_MODEL')
 
 router = APIRouter(
     prefix="/api/v1/meetings",
@@ -42,7 +39,7 @@ def set_stt_running(app: FastAPI, status: bool):
     """STT 실행 상태 설정"""
     app.state.stt_running = status
 
-trigger_keywords = ["젯슨", "젯슨아"]  # RAG 트리거
+trigger_keywords = ["아리", "아리야", "아리아"]  # RAG 트리거
 
 
 async def send_message(message: STTMessage):
@@ -58,7 +55,6 @@ async def send_message(message: STTMessage):
         try:
             response = await client.post(f"{DJANGO_URL}", json=message.model_dump())
             logger.info(f"Message sent to Django: {message}")
-            logger.info(f"Response: {response.json()}")
         except Exception as e:
             logger.exception(f"Exception occured in send_message.\n{str(e)}")
             raise HTTPException(
@@ -67,35 +63,48 @@ async def send_message(message: STTMessage):
             )
 
 async def stt_task(app: FastAPI):
-    """STT 백그라운드 작업"""
+    logger.info("STT가 시작되었습니다. (오디오 입력 대기중)")
+
+    # 오디오 녹음 및 STT 모델 인스턴스
+    audio_recorder = Audio_record()
+    stt_model_instance = app.state.stt_model
+    
+    # Whisper 모델 로딩 (이미 모델이 로드된 경우라면 생략 가능)
+    await asyncio.to_thread(stt_model_instance.set_model, 'base')
+
     while app.state.stt_running:
-        # 실제 음성인식 로직 부분 (예시)
-        logger.info("STT is running ... (waiting for audio input)")
-        
-        # 음성인식 로직 부분
-        transcript = "음성인식 테스트 중 입니다."  # 실제 로직 적용 필요
+        await asyncio.to_thread(audio_recorder.record_start)        # (1) 녹음 시작
+        while audio_recorder.recording:        # (2) VAD로 인해 녹음이 끝날 때까지 대기
+            await asyncio.sleep(0.1)
+        audio_result = await asyncio.to_thread(audio_recorder.record_stop, 0.4)        # (3) 녹음 종료 및 디노이즈 처리 > 녹음된 오디오 정보
+        dic_list, transcript_text = await asyncio.to_thread(stt_model_instance.run, audio_result['audio_denoise'], 'ko')        # (4) STT 수행 > STT 결과
 
-        # 트리거 키워드 확인
-        if any(keyword in transcript for keyword in trigger_keywords):
-            logger.info(f"Trigger keyword detected: {transcript}")
-            # 사용자 질문 전송
-            message = STTMessage(type="query", content=transcript)
-            logger.info(f"Message sent to Django: {message}")
-            await send_message(message)
-            # RAG 질문 응답
-            answer = await rag.rag_process(query=transcript, app=app)
-            message = STTMessage(type="rag", content=answer)
-            await send_message(message)
-        else:
-            logger.info(f"No trigger keyword detected: {transcript}")
-            message = STTMessage(type="plain", content=transcript)
-            logger.info(f"Message sent to Django: {message}")
-            await send_message(message)
+        # (5) 트리거 키워드(“아리”, “아리야” 등) 감지 및 메시지 전송
+        if any(keyword in transcript_text for keyword in trigger_keywords):
+            logger.info(f"트리거 키워드 감지: {transcript_text}")
+            msg = STTMessage(type="query", message=transcript_text, docs=None)
+            await send_message(msg)
 
-        await asyncio.sleep(10)
+            # RAG 답변도 생성 > RAG 답변인 경우 docs까지 넘겨야 함
+            rag_answer = await rag.rag_process(app=app, query=transcript_text)
+            message = rag_answer['answer']
+            # docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
+            docs = [1]
+            msg = STTMessage(type="rag", message=message, docs=docs)
+            await send_message(msg)
+
+        else:            # 트리거 미포함 일반 메시지
+            msg = STTMessage(type="plain", message=transcript_text, docs=None)
+            if not msg.message.strip():                # 빈 문자열이면 건너뜀
+                continue
+            logger.info(f"일반 음성 메시지: {msg.message}")
+            await send_message(msg)
+
+        # (6) 약간 쉬었다가 다음 라운드
+        await asyncio.sleep(0.5)
 
 
-@router.post("/{meeting_id}/prepare", status_code=status.HTTP_200_OK)
+@router.post("/{meeting_id}/prepare/", status_code=status.HTTP_200_OK)
 async def prepare_meeting(
     meeting_info: MeetingAgendas, 
     meeting_id: str, 
@@ -113,6 +122,7 @@ async def prepare_meeting(
     Returns:
         PrepareMeetingResponse: 회의 준비 완료 모델
     """
+    logger.info(f"Preparing meeting '{meeting_id}' ...")
     try:
         # 필수 키 존재 여부 확인
         if not meeting_info.project_id:
@@ -130,7 +140,7 @@ async def prepare_meeting(
             app=app
         )
         
-        app.state.stt_model = llm_utils.load_stt_model(app=app)
+        app.state.stt_model = await llm_utils.load_stt_model(app=app)
         app.state.embedding_model = llm_utils.load_embedding_model(app=app)
         app.state.rag_model = llm_utils.load_rag_model(app=app)
         
@@ -153,8 +163,7 @@ async def prepare_meeting(
             )
 
         # 백그라운드 작업 시작
-        # background_tasks.add_task(stt_task, app=app)  # test/dev/jetson 주석 처리
-
+        background_tasks.add_task(stt_task, app=app)
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
         
@@ -170,7 +179,7 @@ async def prepare_meeting(
         )
 
 
-@router.post("/{meeting_id}/next-agenda", status_code=status.HTTP_200_OK)
+@router.post("/{meeting_id}/next-agenda/", status_code=status.HTTP_200_OK)
 async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
     """회의 시작 / 다음 안건 엔드포인트
 
@@ -220,7 +229,7 @@ async def next_agenda(agenda: Agenda, app: FastAPI = Depends(get_app)):
         )
 
 
-@router.post("/{meeting_id}/end", status_code=status.HTTP_200_OK)
+@router.post("/{meeting_id}/end/", status_code=status.HTTP_200_OK)
 async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
     """회의 종료 엔드포인트
     STT 중지, 관련 모델 언로드, 앱 상태에서 필요없는 것들 삭제, 메모리 정리 후 회의 종료 처리
@@ -239,6 +248,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
         # STT 종료 처리
         if hasattr(app.state, "stt_running") and is_stt_running(app):
             set_stt_running(app, False)
+            # app.state.stt_running = False
 
             # 관련 모델 언로드: app.state 에 저장된 모델들에 대한 참조 삭제 
             llm_utils.unload_models(app=app)
@@ -273,7 +283,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
         )
     
 
-@router.post("/{meeting_id}/summary", status_code=status.HTTP_200_OK)
+@router.post("/{meeting_id}/summary/", status_code=status.HTTP_200_OK)
 async def summarize_meetings(
     meeting_id: int, 
     item: MeetingAgendaDetails, 
