@@ -42,8 +42,8 @@ class MeetingAgendaDetails(BaseModel):
 class AgendaSummary(BaseModel):
     """
     안건별 회의록 요약 모델.
-    각 안건의 제목, 원본 내용, 그리고 요약 내용을 포함합니다.
+    각 안건의 id, 제목, 요약 내용 
     """
-    title: str = Field(..., description="안건 제목")
-    original_content: str = Field(..., description="안건 원본 내용")
+    agenda_id: int = Field(..., description="안건 ID")
+    agenda_title: str = Field(..., description="안건 제목")
     summary: str = Field(..., description="안건 요약 내용")

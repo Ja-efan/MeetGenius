@@ -277,7 +277,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
 async def summarize_meetings(
     meeting_id: int, 
     item: MeetingAgendaDetails, 
-    app_state: Any = Depends(get_app_state)
+    app: FastAPI = Depends(get_app)
 ):
     """회의록 요약 함수
 
@@ -295,7 +295,7 @@ async def summarize_meetings(
             AgendaDetail(id=agenda.id, title=agenda.title, content=agenda.content) 
             for agenda in item.agendas
         ]        
-        summaries = await summary.process_query(agenda_items, app_state)
+        summaries = await summary.summary_process(agenda_items, app)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
