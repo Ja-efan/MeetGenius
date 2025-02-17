@@ -5,6 +5,9 @@ from llama_cpp import Llama
 from fastapi import FastAPI
 from pathlib import Path
 from app.utils import logging_config
+from app.services.audio import Custom_faster_whisper  # audio.py 경로에 맞게 수정하세요.
+import asyncio
+import gc
 
 # 로깅 설정
 logger = logging_config.app_logger
@@ -13,18 +16,33 @@ logger = logging_config.app_logger
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 LLM_MODELS_DIR = BASE_DIR / ".llm-model-caches"
 
-
-def load_stt_model(app: FastAPI):
+###########################################################
+async def load_stt_model(app: FastAPI,):
     """
-    STT 모델을 로드 후 반환환
+    STT 모델을 로드한 후 app.state에 저장하고, 인스턴스를 반환합니다.
     """
-
     if not hasattr(app.state, "stt_model"):
-        logger.info(f"Loading STT model ...")
-        stt_model = None  # STT 모델 로드 
-        logger.info(f"STT model loaded successfully!") 
+        STT_MODEL = 'base'
+        logger.info("Loading STT model ...")
+        stt_model_instance = Custom_faster_whisper()
+        await asyncio.to_thread(stt_model_instance.set_model, STT_MODEL)
+        app.state.stt_model = stt_model_instance
+        logger.info("STT model loaded successfully!")
+    return app.state.stt_model
+# def load_stt_model(app: FastAPI):
+#     """
+#     STT 모델을 로드 후 반환환
+#     """
+
+#     if not hasattr(app.state, "stt_model"):
+#         logger.info(f"Loading STT model ...")
+#         stt_model_instance = Custom_faster_whisper()
+#         await asyncio.to_thread(stt_model_instance.set_model, STT_MODEL)
+#         stt_model = None  # STT 모델 로드 
+#         logger.info(f"STT model loaded successfully!") 
         
-        return stt_model
+#         return stt_model
+###########################################################
 
 
 def load_embedding_model(app: FastAPI):
@@ -88,18 +106,6 @@ def load_rag_model(app: FastAPI,
             verbose=False)
 
         logger.info(f"RAG model successfully stored in app.state!")
-
-        # # 반환할 데이터 구성
-        # response_data = {}
-        
-        # if metadata:
-        #     response_data["metadata"] = app_state.rag_model.metadata
-        
-        # if context_params:
-        #     response_data["context_params"] = app_state.rag_model.context_params
-        
-        # # 반환할 데이터가 없다면 None을 반환
-        # return response_data if response_data else None
         
         return rag_model
 
@@ -158,4 +164,10 @@ def unload_models(app: FastAPI):
         del app.state.summary_model
         logger.info(f"Summary model unloaded!")
     
+    # 메모리 정리
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.ipc_collect()  # IPC 캐시 정리 
+        torch.cuda.empty_cache()  # VRAM  메모리 캐시 정리 
+
     logger.info("All models unloaded successfully!")
