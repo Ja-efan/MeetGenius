@@ -34,7 +34,6 @@ importlib_metadata==8.5.0
 importlib_resources==6.5.2
 Jinja2==3.1.5
 kubernetes==32.0.0
-llama_cpp_python @ file:///backend/llama_cpp_python-0.3.7-cp310-cp310-linux_aarch64.whl
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
@@ -91,7 +90,6 @@ tensorrt_dispatch==10.3.0
 tensorrt_lean==10.3.0
 tokenizers==0.21.0
 tomli==2.2.1
-torch @ file:///backend/torch-2.6.0rc1-cp310-cp310-linux_aarch64.whl
 tqdm==4.67.1
 transformers==4.48.2
 typer==0.15.1
@@ -105,3 +103,10 @@ websocket-client==1.8.0
 websockets==14.2
 wrapt==1.17.2
 zipp==3.21.0
+sentence_transformers
+faster_whisper
+SpeechRecognition
+noisereduce
+webrtcvad
+pyaudio
+colorlog
