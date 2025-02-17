@@ -58,63 +58,73 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
     
     summaries = [] # 안건별 요약 결과 저장 리스트
     
-    for item in agenda_items:
-        agenda_id = item.id
-        agenda_title = item.title
-        agenda_result = item.content
+    try:
+        for item in agenda_items:
+            agenda_id = item.id
+            agenda_title = item.title
+            agenda_result = item.content
 
-        if not agenda_result:
-            continue
-        
-        prompt = f"""
-        당신은 회의 내용을 요약하는 AI 어시스턴트입니다.
-        각 회의에는 여러 개의 안건이 있으며, 안건별로 중요한 내용을 빠짐없이 요약해야 합니다.
-        각 안건은 agenda_id로 식별됩니다.
+            if not agenda_result:
+                continue
+            
+            prompt = f"""
+            당신은 회의 내용을 요약하는 AI 어시스턴트입니다.
+            각 회의에는 여러 개의 안건이 있으며, 안건별로 중요한 내용을 빠짐없이 요약해야 합니다.
+            각 안건은 agenda_id로 식별됩니다.
 
-        [출력 규칙]
-        1. 반드시 JSON 형식으로 출력해야 합니다.
-        2. 출력은 **"json "**으로 시작해야 하며, 뒤이어 바로 JSON 객체를 출력하세요.
-        3. **그 외의 설명, 마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈, 공백을 포함하지 마세요.**
-        4. JSON 형식은 다음과 같습니다.
+            [출력 규칙]
+            1. 반드시 JSON 형식으로 출력해야 합니다.
+            2. 출력은 **"json "**으로 시작해야 하며, 뒤이어 바로 JSON 객체를 출력하세요.
+            3. **그 외의 설명, 마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈, 공백을 포함하지 마세요.**
+            4. JSON 형식은 다음과 같습니다.
 
-        [출력 예시]
-        json {{"안건 id": {agenda_id}, "안건 제목": "{agenda_title}", "요약 내용": "<안건 요약>"}}
+            [출력 예시]
+            json {{"안건 id": {agenda_id}, "안건 제목": "{agenda_title}", "요약 내용": "<안건 요약>"}}
 
-        [요약 지침]
-        1. 모든 논의된 주요 내용을 포함하여 요약하세요. (기술 비교, 협업 도구 활용, 일정 조정, 리스크 분석 등)
-        2. 회의에서 논의된 "결정 사항"을 강조하여 명확하게 기술하세요. (예: "백엔드는 FastAPI로 결정")
-        3. 여러 대안이 논의된 경우, 각각의 장단점을 간략히 포함하세요. (예: "Whisper는 성능 우수, Azure STT는 비용 절감 가능")
-        4. 구체적인 수치(성능 개선율, 일정, 기술, 목표 KPI 등)가 포함된 경우 그대로 유지하세요.
-        5. 출력은 반드시 하나의 문자열이어야 하며, **"json "**으로 시작한 후 바로 JSON 객체가 이어져야 합니다.
-        마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈이나 공백은 포함하지 마세요.
+            [요약 지침]
+            1. 모든 논의된 주요 내용을 포함하여 요약하세요. (기술 비교, 협업 도구 활용, 일정 조정, 리스크 분석 등)
+            2. 회의에서 논의된 "결정 사항"을 강조하여 명확하게 기술하세요. (예: "백엔드는 FastAPI로 결정")
+            3. 여러 대안이 논의된 경우, 각각의 장단점을 간략히 포함하세요. (예: "Whisper는 성능 우수, Azure STT는 비용 절감 가능")
+            4. 구체적인 수치(성능 개선율, 일정, 기술, 목표 KPI 등)가 포함된 경우 그대로 유지하세요.
+            5. 출력은 반드시 하나의 문자열이어야 하며, **"json "**으로 시작한 후 바로 JSON 객체가 이어져야 합니다.
+            마크다운, 코드 블록, 추가 텍스트, 불필요한 줄바꿈이나 공백은 포함하지 마세요.
 
-        [안건 정보]
-        안건 ID: {agenda_id}
-        안건 제목: {agenda_title}
-        안건 내용:
-        {agenda_result}
+            [안건 정보]
+            안건 ID: {agenda_id}
+            안건 제목: {agenda_title}
+            안건 내용:
+            {agenda_result}
 
-        위 내용을 요약하고 JSON 형식으로 출력하세요.
-        """
+            위 내용을 요약하고 JSON 형식으로 출력하세요.
+            """
 
-        
-        # 요약 모델 호출
-        start_time = time.time()
-        result = summary_model(prompt, max_tokens=2000, temperature=0.3)
-        end_time = time.time()
-        logger.info(f"Summary 응답 생성 시간: {end_time - start_time:.2f}초")
+            
+            # 요약 모델 호출
+            start_time = time.time()
+            result = summary_model(
+                prompt, 
+                max_tokens=2000, 
+                temperature=0.3
+            )
+            end_time = time.time()
+            logger.info(f"Summary 응답 생성 시간: {end_time - start_time:.2f}초")
+            answer = result["choices"][0]["text"]
+            summary_data = extract_json_from_string(answer)
 
-        answer = result["choices"][0]["text"]
-        summary_data = extract_json_from_string(answer)
+            if summary_data is None:
+                logger.error(f"agenda_id {agenda_id} 요약이 실패했습니다. 응답 내용: {answer}")
+                continue  
 
-        if summary_data is None:
-            logger.error(f"agenda_id {agenda_id} 요약이 실패했습니다. 응답 내용: {answer}")
-            continue  
+            # **최종 결과 저장**
+            summaries.append(AgendaSummary(
+                title=agenda_title,
+                original_content=agenda_result,
+                summary=summary_data
+            ))
 
-        summaries.append({
-            "agenda_id": agenda_id,
-            "agenda_title": agenda_title,
-            "summary": summary_data["요약 내용"]  # 요약 내용만 저장
-        })
-
-    return summaries
+        return summaries
+    
+    
+    except Exception as e:
+        logger.error(f"Summary process failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"요약 과정 중 오류 발생: {str(e)}")
