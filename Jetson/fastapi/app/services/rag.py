@@ -10,6 +10,32 @@ from app.utils import chromadb_utils, llm_utils, logging_config
 # 로깅 설정
 logger = logging_config.app_logger
 
+def extract_answer(answer_str: str) -> str:
+    """
+    주어진 문자열에서 "답변:"과 "**" 등의 토큰을 제거하고,
+    문장 끝(., ?, !) 뒤의 개행은 보존하며, 그 외의 개행은 공백으로 치환합니다.
+    또한, 괄호, 작은/큰 따옴표, dot(.), comma(,), 느낌표(!), 물음표(?)를 제외한
+    모든 특수문자를 제거합니다.
+    
+    :param answer_str: 원본 RAG모델 응답 문자열
+    :return: 정제된 답변 내용
+    """
+    # 1. "답변:"과 "**" 제거
+    text = answer_str.replace("답변:", "").replace("**", "")
+    text = text.strip()
+    
+    # 2. 문장 끝(., ?, !) 뒤에 오는 개행은 보존하고, 그 외의 개행은 공백으로 치환
+    text = re.sub(r'(?<![.?!])\n+', ' ', text)
+    
+    # 3. 허용 문자: 영문, 한글, 숫자, 공백, 괄호, 작은/큰 따옴표, dot(.), comma(,), 느낌표(!), 물음표(?)
+    text = re.sub(r'[^0-9A-Za-z가-힣\s\(\)\'",.!?%]+', '', text)
+    
+    # 4. 각 줄별로 불필요한 공백 제거 (개행은 유지)
+    lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in text.splitlines()]
+    cleaned_text = "\n".join(line for line in lines if line)
+    
+    return cleaned_text
+
 def extract_json_from_string(input_str: str) -> dict:
     """
     주어진 문자열에서 'json' 키워드 뒤에 있는 JSON 객체를 추출하여 파싱한 후,
@@ -138,7 +164,7 @@ json {{"답변 요약": "<핵심 요약>", "주요 정보": "<수치 및 기술 
     # 답변 형식 정리 
     answer = result["choices"][0]["text"]
     
-    answer_json = extract_json_from_string(answer)
-
-    return {"question": query, "answer": answer_json, "doc_ids": retrieved_doc_ids}
+    # answer_json = extract_json_from_string(answer)
+    answer = extract_answer(answer)
+    return {"answer": answer, "docs": retrieved_doc_ids}
 
