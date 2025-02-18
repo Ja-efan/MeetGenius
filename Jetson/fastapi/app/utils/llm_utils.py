@@ -8,6 +8,16 @@ from dotenv import load_dotenv
 from app.utils import logging_config
 from app.services.audio import Custom_faster_whisper  # audio.py 경로에 맞게 수정하세요.
 
+# 로깅 설정
+logger = logging_config.app_logger
+
+# 문자열과 torch dtype 간 매핑 딕셔너리
+dtype_mapping = {
+    "torch.float": torch.float,
+    "torch.float16": torch.float16,
+    "torch.float32": torch.float32,
+    # 필요한 타입을 추가하세요.
+}
 
 # SYSTEM OS & MODEL CACHE DIR
 SYSTEM_OS = os.getenv("SYSTEM_OS")
@@ -16,26 +26,22 @@ HUGGINGFACE_CACHE_DIR = os.getenv("HUGGINGFACE_CACHE_DIR")
 
 # EMBEDDING MODEL CONFIG
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME")
-EMBEDDING_MODEL_LOAD_IN_4BIT = os.getenv("EMBEDDING_MODEL_LOAD_IN_4BIT")
-EMBEDDING_MODEL_BBN_4BIT_COMPUTE_DTYPE = os.getenv("EMBEDDING_MODEL_BBN_4BIT_COMPUTE_DTYPE")
-EMBEDDING_MODEL_LOW_CPU_USAGE = os.getenv("EMBEDDING_MODEL_LOW_CPU_USAGE")
-# EMBEDDING_MODEL_LOAD_IN_8BIT = os.getenv("EMBEDDING_MODEL_LOAD_IN_8BIT")
-# EMBEDDING_MODEL_BBN_8BIT_COMPUTE_DTYPE = os.getenv("EMBEDDING_MODEL_BBN_8BIT_COMPUTE_DTYPE")
+EMBEDDING_MODEL_LOAD_IN_4BIT = bool(os.getenv("EMBEDDING_MODEL_LOAD_IN_4BIT"))  # bool 타입으로 변환
+EMBEDDING_MODEL_BBN_4BIT_COMPUTE_DTYPE = dtype_mapping[os.getenv("EMBEDDING_MODEL_BBN_4BIT_COMPUTE_DTYPE")]  # dtype_mapping 사용   
+EMBEDDING_MODEL_LOW_CPU_USAGE = bool(os.getenv("EMBEDDING_MODEL_LOW_CPU_USAGE"))  # bool 타입으로 변환
 
 # RAG MODEL CONFIG
 RAG_MODEL_NAME = os.getenv("RAG_MODEL_NAME")
-RAG_MODEL_N_CTX = os.getenv("RAG_MODEL_N_CTX")
-RAG_MODEL_TEMPERATURE = os.getenv("RAG_MODEL_TEMPERATURE")
-RAG_MODEL_N_GPU_LAYERS = os.getenv("RAG_MODEL_N_GPU_LAYERS")
+RAG_MODEL_N_CTX = int(os.getenv("RAG_MODEL_N_CTX"))  # int 타입으로 변환
+RAG_MODEL_TEMPERATURE = float(os.getenv("RAG_MODEL_TEMPERATURE"))  # float 타입으로 변환
+RAG_MODEL_N_GPU_LAYERS = int(os.getenv("RAG_MODEL_N_GPU_LAYERS"))  # int 타입으로 변환
 
 # SUMMARY MODEL CONFIG
 SUMMARY_MODEL_NAME = os.getenv("SUMMARY_MODEL_NAME")
-SUMMARY_MODEL_N_CTX = os.getenv("SUMMARY_MODEL_N_CTX")
-SUMMARY_MODEL_TEMPERATURE = os.getenv("SUMMARY_MODEL_TEMPERATURE")
-SUMMARY_MODEL_N_GPU_LAYERS = os.getenv("SUMMARY_MODEL_N_GPU_LAYERS")
+SUMMARY_MODEL_N_CTX = int(os.getenv("SUMMARY_MODEL_N_CTX"))  # int 타입으로 변환
+SUMMARY_MODEL_TEMPERATURE = float(os.getenv("SUMMARY_MODEL_TEMPERATURE"))  # float 타입으로 변환
+SUMMARY_MODEL_N_GPU_LAYERS = int(os.getenv("SUMMARY_MODEL_N_GPU_LAYERS"))  # int 타입으로 변환
 
-# 로깅 설정
-logger = logging_config.app_logger
 
 
 async def load_stt_model(app: FastAPI):
@@ -128,6 +134,11 @@ def load_rag_model():
         logger.info(f"Loading RAG model: {RAG_MODEL_NAME}...")
         logger.info(f"LLAMACPP_CACHE_DIR: {LLAMACPP_CACHE_DIR}")
 
+        logger.info(f"RAG_MODEL_NAME: {RAG_MODEL_NAME}")
+        logger.info(f"RAG_MODEL_N_CTX: {RAG_MODEL_N_CTX}")
+        logger.info(f"RAG_MODEL_TEMPERATURE: {RAG_MODEL_TEMPERATURE}")
+        logger.info(f"RAG_MODEL_N_GPU_LAYERS: {RAG_MODEL_N_GPU_LAYERS}")
+        
         # 모델 로드
         rag_model = Llama(
             model_path=LLAMACPP_CACHE_DIR + RAG_MODEL_NAME,
@@ -136,7 +147,7 @@ def load_rag_model():
             n_gpu_layers=RAG_MODEL_N_GPU_LAYERS,
             verbose=False)
 
-        logger.info(f"RAG model successfully stored in app.state!")
+        logger.info(f"RAG model successfully loaded!")
         
         return rag_model
 
