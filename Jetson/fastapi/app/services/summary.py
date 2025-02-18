@@ -121,7 +121,10 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
                 original_content=agenda_result,
                 summary=summary_data
             ))
-
+        
+        # 모델 언로드
+        llm_utils.unload_models(app=app)
+        
         return summaries
     
     
