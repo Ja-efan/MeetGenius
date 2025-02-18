@@ -18,7 +18,7 @@ logger = logging_config.app_logger
 load_dotenv()
 
 # DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
-DJANGO_URL="http://192.168.0.32:8000/meetings/data_receive/"
+DJANGO_URL="http://192.168.31.48:8000/meetings/data_receive/"
 
 router = APIRouter(
     prefix="/api/v1/meetings",
@@ -83,7 +83,7 @@ async def stt_task(app: FastAPI):
             rag_answer = await rag.rag_process(app=app, query=transcript_text)
             message = rag_answer['answer']
             # docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
-            docs = [1]
+            docs = [1, 2, 3]
             msg = STTMessage(type="rag", message=message, docs=docs)
             await send_message(msg)
 
