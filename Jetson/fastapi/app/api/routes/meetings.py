@@ -132,9 +132,18 @@ async def prepare_meeting(
             app=app
         )
         
-        app.state.stt_model = await llm_utils.load_stt_model(app=app)
-        app.state.embedding_model = llm_utils.load_embedding_model(app=app)
-        app.state.rag_model = llm_utils.load_rag_model(app=app)
+        # 기존 코드 (모델 로드 순서대로 실행)
+        # app.state.stt_model = await llm_utils.load_stt_model(app=app)
+        # app.state.embedding_model = llm_utils.load_embedding_model(app=app)
+        # app.state.rag_model = llm_utils.load_rag_model(app=app)
+        
+        # 모델 로드를 백그라운드 스레드로 병렬 처리
+        stt_task = llm_utils.load_stt_model(app=app)  # 이미 async 함수임
+        embedding_task = asyncio.to_thread(llm_utils.load_embedding_model)
+        rag_task = asyncio.to_thread(llm_utils.load_rag_model)
+        app.state.stt_model, app.state.embedding_model, app.state.rag_model = await asyncio.gather(
+            stt_task, embedding_task, rag_task
+        )
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
@@ -159,9 +168,6 @@ async def prepare_meeting(
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
 
-        logger.info(f"##########################################################")
-
-        
         return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
 
     except HTTPException as he:
