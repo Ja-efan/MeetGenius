@@ -1,7 +1,6 @@
 from faster_whisper import WhisperModel
 import threading
 import numpy as np
-import speech_recognition as sr
 import noisereduce as nr
 import webrtcvad
 import librosa  # 다운샘플링을 위해 추가됨
@@ -12,6 +11,8 @@ logger = logging_config.app_logger
 
 class Audio_record:
     def __init__(self):
+        import speech_recognition as sr
+        
         # 하드웨어 샘플레이트: 마이크가 지원하는 주파수 (예: 48000Hz)
         self.hardware_sample_rate = 48000  
         # Whisper가 기대하는 샘플레이트

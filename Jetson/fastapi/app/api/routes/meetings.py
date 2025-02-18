@@ -12,13 +12,13 @@ from app.services import rag, summary
 from app.utils import llm_utils, chromadb_utils, logging_config
 from dotenv import load_dotenv
 from app.services.audio import Audio_record
+
+
 # 로깅 설정
 logger = logging_config.app_logger
 
-load_dotenv()
-
-# DJANGO_URL = os.getenv('DJANGO_URL')  # 장고 stt url 
-DJANGO_URL="http://192.168.31.48:8000/meetings/data_receive/"
+# 장고 STT URL
+DJANGO_URL=os.getenv('DJANGO_URL')
 
 router = APIRouter(
     prefix="/api/v1/meetings",
@@ -101,7 +101,7 @@ async def stt_task(app: FastAPI):
 @router.post("/{meeting_id}/prepare/", status_code=status.HTTP_200_OK)
 async def prepare_meeting(
     meeting_info: MeetingAgendas, 
-    meeting_id: str, 
+    meeting_id: int, 
     background_tasks: BackgroundTasks, 
     app: FastAPI = Depends(get_app)
 ):
@@ -123,20 +123,33 @@ async def prepare_meeting(
             msg = "Missing 'project_id' in meeting_info"
             logger.error(msg)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
-
-        # 현재 회의 프로젝트 ID 저장
-        app.state.project_id = meeting_info.project_id 
-        logger.info(f"Project ID: {app.state.project_id}")
+          
         
+        if not hasattr(app.state, "chromadb_client"):
+            app.state.chromadb_client = chromadb_utils.get_chromadb_client()
+
         # 프로젝트 관련 collection 생성 및 app_state에 저장
         app.state.project_collection = chromadb_utils.ProjectCollection(
+            client=app.state.chromadb_client,
             project_id=meeting_info.project_id,
             app=app
         )
         
+        # 기존 코드 (모델 로드 순서대로 실행)
+        # app.state.stt_model = await llm_utils.load_stt_model(app=app)
+        # app.state.embedding_model = llm_utils.load_embedding_model(app=app)
+        # app.state.rag_model = llm_utils.load_rag_model(app=app)
+        
+        # 모델 로드를 백그라운드 스레드로 병렬 처리
+        stt_task = llm_utils.load_stt_model(app=app)  # 이미 async 함수임
+        embedding_task = asyncio.to_thread(llm_utils.load_embedding_model)
+        rag_task = asyncio.to_thread(llm_utils.load_rag_model)
+        app.state.stt_model, app.state.embedding_model, app.state.rag_model = await asyncio.gather(
+            stt_task, embedding_task, rag_task
+        )
         app.state.stt_model = await llm_utils.load_stt_model(app=app)
-        app.state.embedding_model = llm_utils.load_embedding_model(app=app)
-        app.state.rag_model = llm_utils.load_rag_model(app=app)
+        app.state.embedding_model = llm_utils.load_embedding_model()
+        app.state.rag_model = llm_utils.load_rag_model()
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
@@ -161,9 +174,6 @@ async def prepare_meeting(
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
 
-        logger.info(f"##########################################################")
-
-        
         return PrepareMeetingResponse(result=app.state.is_meeting_ready, message="회의 준비 완료")
 
     except HTTPException as he:

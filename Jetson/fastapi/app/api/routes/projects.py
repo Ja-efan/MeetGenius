@@ -13,19 +13,27 @@ logger = logging_config.app_logger
 
 
 @router.post("/{project_id}/documents/")
-async def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_app)):
+def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_app)):
     """
     문서 삽입 
     """
+
+    # chromdb client 생성
+    if not hasattr(app.state, "chromadb_client"):
+        chromadb_client = chromadb_utils.get_chromadb_client()
+        logger.info(f"Chromadb client created successfully!")
+
     # 프로젝트 컬렉션 초기화 
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found in app.state, creating new one...")
-        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
         logger.info(f"Project collection created successfully!")
+
+    embeddings = llm_utils.load_embedding_model()
 
     # 문서 삽입 
     logger.info(f"Inserting documents into project collection...")
-    inserted_ids = app.state.project_collection.insert_documents(documents)
+    inserted_ids = project_collection.insert_documents(embeddings, documents)
     logger.info(f"Documents inserted successfully!")
     
     # 모델 언로드 
@@ -39,12 +47,18 @@ async def get_documents(project_id: int, app=Depends(get_app)):
     """
     문서 조회 
     """
+    # chromadb client 생성
+    if not hasattr(app.state, "chromadb_client"):
+        app.state.chromadb_client = chromadb_utils.get_chromadb_client()
+        logger.info(f"Chromadb client created successfully!")
+
+    # 프로젝트 컬렉션 초기화 
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found in app.state, creating new one...")
-        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
         logger.info(f"Project collection created successfully!")
 
-    documents = app.state.project_collection.get_documents(project_id)
+    documents = app.state.project_collection.get_documents()
     logger.info(f"Project {project_id} documents: {documents['ids']}")
     
     return {"message": "문서 조회 완료", "documents": documents}   
@@ -55,18 +69,23 @@ async def delete_document(project_id: int, document_id: int, app=Depends(get_app
     """
     문서 삭제
     """
+    # chromadb client 생성
+    if not hasattr(app.state, "chromadb_client"):
+        app.state.chromadb_client = chromadb_utils.get_chromadb_client()
+        logger.info(f"Chromadb client created successfully!")
+
     # 프로젝트 컬렉션 초기화 
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found for project {project_id}. Creating new one...")
-        app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
-    else:
-        if app.state.project_collection.project_id != str(project_id):
-            logger.info(f"Project collection found for project {project_id}, but it's not the correct one. Creating new one...")
-            app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
+    # else:
+    #     if app.state.project_collection.project_id != str(project_id):
+    #         logger.info(f"Project collection found for project {project_id}, but it's not the correct one. Creating new one...")
+    #         app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
 
-    documents = app.state.project_collection.get_documents(project_id) # 삭제하려는 문서 존재 확인(get_documents)
+    documents = app.state.project_collection.get_documents() # 삭제하려는 문서 존재 확인(get_documents)
     
-    document_ids = documents.get('ids', [])
+    document_ids = documents['ids']
     
     # 프로젝트에 문서가 존재하지 않는 경우
     if not document_ids:
