@@ -3,7 +3,6 @@
 """
 import time
 import re
-import json
 from fastapi import FastAPI, HTTPException
 from app.utils import chromadb_utils, llm_utils, logging_config
 
@@ -35,39 +34,6 @@ def extract_answer(answer_str: str) -> str:
     cleaned_text = "\n".join(line for line in lines if line)
     
     return cleaned_text
-
-def extract_json_from_string(input_str: str) -> dict:
-    """
-    주어진 문자열에서 'json' 키워드 뒤에 있는 JSON 객체를 추출하여 파싱한 후,
-    Python의 dict 객체로 반환합니다.
-    
-    매개변수:
-        input_str (str): 파싱할 문자열.
-        
-    반환값:
-        dict: 파싱된 JSON 데이터.
-        
-    예외:
-        ValueError: 문자열 내에서 JSON 객체를 찾지 못하거나 JSON 파싱에 실패한 경우.
-    """
-    # 'json' 키워드 이후에 나오는 JSON 객체를 찾기 위한 정규표현식.
-    # DOTALL 옵션을 사용하여 개행 문자도 포함하도록 합니다.
-    pattern = r"json\s*(\{.*\})"
-    match = re.search(pattern, input_str, re.DOTALL)
-    
-    if not match:
-        logger.error(f"Cannot find JSON object in the input string.")
-        return input_str
-    
-    json_str = match.group(1)
-    
-    try:
-        parsed_data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON 파싱에 실패했습니다: {e}")
-    
-    return parsed_data
-
 
 async def rag_process(query: str, app: FastAPI, project_id: int):
     """사용자의 질문을 처리하여 RAG 기반의 답변을 생성하는 함수 
@@ -131,9 +97,9 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
 
     # ChroaaDB에서 관련 문서 검색 (Top-K 검색)
     search_results = project_collection.search_documents(query_embedding=query_embedding, top_k=1)
+    logger.info(f"search_results: {search_results}")
     retrieved_content = search_results["documents"][0]
-    retrieved_doc_ids = [int(id) for id in search_results["ids"][0]]
-    
+    retrieved_doc_ids = search_results["metadatas"][0][0]["document_id"]
     
     # 프롬프트 구성 (EXAONE3.5)
     prompt = f"""
@@ -155,10 +121,6 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
 #답변
 """
 
-
-
-
-
     start_time = time.time()
     result = rag_model(
         prompt,
@@ -171,7 +133,6 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
     # 답변 형식 정리 
     answer = result["choices"][0]["text"]
     
-    # answer_json = extract_json_from_string(answer)
     answer = extract_answer(answer)
     return {"answer": answer, "docs": retrieved_doc_ids}
 
