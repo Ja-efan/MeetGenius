@@ -92,23 +92,33 @@ async def test_summary(meeting_id: int, app: FastAPI = Depends(get_app)):
         "summaries": summaries
     }
 
-@router.get("/{project_id}", status_code=status.HTTP_200_OK)
-async def test_project_documents(project_id: int, app: FastAPI = Depends(get_app)):
-    project_collection = ProjectCollection(project_id=project_id, app=app)
-    if not project_collection.get_documents():
-        return {"message": "No documents found"}
-    else:
-        return project_collection.get_documents()
-
-
 @router.get("/projects", status_code=status.HTTP_200_OK)
-async def test_project_list(app: FastAPI = Depends(get_app)):
+async def test_project_list():
     chromadb_client = get_chromadb_client()
     project_list = chromadb_client.list_collections()
     if not project_list:
         return {"message": "No collections found"}
     else:
         return project_list
+    
+
+@router.get("/projects/{project_id}", status_code=status.HTTP_200_OK)
+async def test_project_documents(project_id: int, app: FastAPI = Depends(get_app)):
+
+    project_id = "PJT-" + str(project_id)
+    chromadb_client = get_chromadb_client()
+    if not chromadb_client.list_collections():
+        return {"message": "No project collections found"}
+    
+    if not project_id in chromadb_client.list_collections():
+        return {"message": f"Project {project_id} not found"}
+    
+    project_collection = ProjectCollection(project_id=project_id, app=app)
+    if not project_collection.get_documents():
+        return {"message": "No documents found"}
+    else:
+        return project_collection.get_documents()
+
 
 @router.get("/stt", status_code=status.HTTP_200_OK)
 async def test_load_stt_model(app: FastAPI = Depends(get_app)):
