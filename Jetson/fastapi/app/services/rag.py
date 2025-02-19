@@ -97,9 +97,14 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
 
     # ChroaaDB에서 관련 문서 검색 (Top-K 검색)
     search_results = project_collection.search_documents(query_embedding=query_embedding, top_k=1)
-    logger.info(f"search_results: {search_results}")
+    # logger.info(f"search_results: {search_results}")
+    
+    print(f"search_results['metadatas']: {search_results['metadatas']}")
     retrieved_content = search_results["documents"][0]
     retrieved_doc_ids = search_results["metadatas"][0][0]["document_id"]
+    
+    if not retrieved_doc_ids:
+        return {"answer": "문서에서 해당 내용을 찾을 수 없습니다.", "docs": []}
     
     # 프롬프트 구성 (EXAONE3.5)
     prompt = f"""

@@ -99,7 +99,7 @@ class ProjectCollection:
         
         return inserted_ids
     
-    def insert_meeting_transcript(self, embedding_model, project_id,meeting_id, document_id, transcript_text):
+    def insert_meeting_transcript(self, embedding_model, project_id, meeting_id, document_id, transcript_text):
         """요약전 회의록 텍스트 삽입"""
         # 회의록 텍스트 임베딩
 
