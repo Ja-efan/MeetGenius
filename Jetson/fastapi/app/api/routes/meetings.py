@@ -288,7 +288,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
 
 @router.post("/{meeting_id}/summary/", status_code=status.HTTP_200_OK)
 async def summarize_meetings(
-    meeting_id: int, 
+    meeting_id: int,
     item: MeetingAgendaDetails, 
     app: FastAPI = Depends(get_app)
 ):
@@ -308,7 +308,7 @@ async def summarize_meetings(
             AgendaDetail(id=agenda.id, title=agenda.title, content=agenda.content) 
             for agenda in item.agendas
         ]        
-        summaries = await summary.summary_process(agenda_items, app)
+        summaries = await summary.summary_process(item.project_id, meeting_id, item.document_id, agenda_items, app)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
         logger.info(summaries)
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)

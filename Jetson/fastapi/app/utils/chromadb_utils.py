@@ -98,6 +98,45 @@ class ProjectCollection:
             inserted_ids.append(document.document_id)
         
         return inserted_ids
+    
+    def insert_meeting_transcript(self, embedding_model, project_id,meeting_id, document_id, transcript_text):
+        """요약전 회의록 텍스트 삽입"""
+        # 회의록 텍스트 임베딩
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+
+        chunks = text_splitter.split_text(transcript_text)
+        for idx, chunk in enumerate(chunks):
+            # 각 청크마다 ID 생성 (document_id + _ + idx)
+            chunk_id = f"{document_id}_{idx}"
+            # 청크 임베딩
+            sentence = [f"passage: {chunk}"]
+            embeddings = embedding_model.encode(sentence)
+
+            # 청크 메타데이터 생성
+            chunk_metadata = {
+                "document_id": document_id,
+                "chunk_id": chunk_id,
+                "chunk_index": idx,
+                "chunk_size": len(chunk),
+                "document_type": 0,  # 요약 전 회의록
+                "meeting_id": meeting_id,
+                "project_id": project_id
+            }
+
+            # 청크 추가
+            self.collection.add(
+                ids=[chunk_id],
+                documents=[chunk],
+                embeddings=embeddings,
+                metadatas=[chunk_metadata]
+            )
+            
+        inserted_id = document_id
+
+        return inserted_id        
+        
+        
 
 
     def get_documents(self):

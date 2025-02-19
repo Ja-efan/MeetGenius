@@ -38,6 +38,8 @@ class MeetingAgendaDetails(BaseModel):
     """
     회의 진행 중 또는 결과로 반환할 상세 안건 목록 모델.
     """
+    project_id: int = Field(..., description="프로젝트 ID")
+    document_id: int = Field(..., description="회의록 ID")
     agendas: List[AgendaDetail] = Field(..., description="상세 안건 목록")
 
 class AgendaSummary(BaseModel):
