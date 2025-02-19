@@ -208,6 +208,8 @@ def unload_models(app: FastAPI):
     # 메모리 정리
     gc.collect()
     if torch.cuda.is_available():
+        # 모든 GPU 연산이 완료될 때까지 동기화
+        torch.cuda.synchronize()
         torch.cuda.ipc_collect()  # IPC 캐시 정리 
         torch.cuda.empty_cache()  # VRAM  메모리 캐시 정리 
 

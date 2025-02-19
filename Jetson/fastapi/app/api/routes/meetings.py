@@ -10,7 +10,6 @@ from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, En
 from app.dependencies import get_app
 from app.services import rag, summary
 from app.utils import llm_utils, chromadb_utils, logging_config
-from dotenv import load_dotenv
 from app.services.audio import Audio_record
 
 
@@ -80,10 +79,10 @@ async def stt_task(app: FastAPI):
             await send_message(msg)
 
             # RAG 답변도 생성 > RAG 답변인 경우 docs까지 넘겨야 함
-            rag_answer = await rag.rag_process(app=app, query=transcript_text)
+            rag_answer = await rag.rag_process(app=app, query=transcript_text, project_id=app.state.project_id)
             message = rag_answer['answer']
-            # docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
-            docs = [1]
+            docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
+            # docs = [1, 2, 3]
             msg = STTMessage(type="rag", message=message, docs=docs)
             await send_message(msg)
 
@@ -311,6 +310,7 @@ async def summarize_meetings(
         ]        
         summaries = await summary.summary_process(agenda_items, app)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
+        logger.info(summaries)
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")

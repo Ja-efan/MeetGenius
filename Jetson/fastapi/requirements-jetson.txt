@@ -111,3 +111,4 @@ webrtcvad
 pyaudio
 colorlog
 librosa
+langchain

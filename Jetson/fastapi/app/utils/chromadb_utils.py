@@ -6,15 +6,11 @@ from app.schemes.documents import DocumentList
 from app.utils.llm_utils import load_embedding_model
 from app.utils import logging_config
 import platform
-from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 
 # 로깅 설정
 logger = logging_config.app_logger
-
-# 환경 변수 로드
-load_dotenv()
 
 def get_chromadb_client():
     """운영 체제에 따라 적절한 ChromaDB 클라이언트를 선택"""
@@ -28,10 +24,15 @@ def get_chromadb_client():
     
     else:  # Jetson (Linux 기반)
         logger.info(f"Running on {system_name} - Using Remote ChromaDB Server")
-        return HttpClient(host= os.getenv("CHROMADB_HTTP_CLIENT_HOST"),  
-                              port=os.getenv("CHROMADB_HTTP_CLIENT_PORT"), 
-                              ssl=os.getenv("CHROMADB_HTTP_CLIENT_SSL"))  # Jetson에서 ChromaDB 컨테이너 서버에 연결
+        logger.info(f"ChromaDB HTTP Client Host: {os.getenv('CHROMADB_HTTP_CLIENT_HOST')}")
+        logger.info(f"ChromaDB HTTP Client Port: {int(os.getenv('CHROMADB_HTTP_CLIENT_PORT'))}")
+        logger.info(f"ChromaDB HTTP Client SSL: {bool(os.getenv('CHROMADB_HTTP_CLIENT_SSL'))}")
 
+        return HttpClient(host= os.getenv("CHROMADB_HTTP_CLIENT_HOST"),  
+                              port=int(os.getenv("CHROMADB_HTTP_CLIENT_PORT")), 
+                              ssl=False)  # Jetson에서 ChromaDB 컨테이너 서버에 연결
+
+        # return HttpClient(host='chromadb-server', port=8001, ssl=False)
 class ProjectCollection:
     def __init__(self, client, project_id: int, app: FastAPI):
         """ProjectCollection 생성자
