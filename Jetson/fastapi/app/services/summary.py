@@ -1,15 +1,19 @@
 import time
 from app.schemes.meetings import AgendaSummary
 from fastapi import FastAPI, HTTPException
-from app.utils import llm_utils, logging_config
+from app.utils import llm_utils, logging_config, chromadb_utils
 from typing import List
-from app.schemes.meetings import AgendaDetail
+from app.schemes.meetings import AgendaDetail   
 
 # 로깅 설정
 logger = logging_config.app_logger
 
 
-async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
+async def summary_process(project_id: int,
+                          meeting_id: int, 
+                          document_id: int,
+                          agenda_items: List[AgendaDetail], 
+                          app: FastAPI):
     """안건별 요약 처리 함수
     Args:
         agenda_items (List[AgendaDetail]): 안건 제목, 내용 리스트
@@ -25,12 +29,27 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
     if not hasattr(app.state, "summary_model"):
         logger.info(f"Summary model not found in app.state, loading...")
         app.state.summary_model = llm_utils.load_summary_model()
-        app.state.summary_model = llm_utils.load_summary_model()
     
-    # 모델이 정상적으로 로드되었는지 확인 
+    # 요약 모델이 정상적으로 로드되었는지 확인 
     if not app.state.summary_model:
         logger.error("Summary is not loaded properly. Please check the model.")
         raise HTTPException(status_code=500, detail="Summary 시스템이 완전히 로드되지 않았습니다. 다시 시도해주세요.")
+    
+    # 임베딩 모델이 정상적으로 로드되었는지 확인 
+    if not hasattr(app.state, "embedding_model"):
+        logger.info(f"Embedding model not found in app.state, loading...")
+        app.state.embedding_model = llm_utils.load_embedding_model()
+
+    # ChromaDB클라이언트가 정상적으로 로드되었는지 확인 
+    if not hasattr(app.state, "chromadb_client"):
+        logger.info(f"Chromadb client not found in app.state, loading...")
+        app.state.chromadb_client = chromadb_utils.get_chromadb_client()
+    
+    # 프로젝트 컬렉션이 정상적으로 로드되었는지 확인 
+    if not hasattr(app.state, "project_collection"):
+        logger.info(f"Project collection not found in app.state, loading...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
+
     
     summaries = [] # 안건별 요약 결과 저장 리스트
     
@@ -41,6 +60,15 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
             agenda_title = item.title
             agenda_content = item.content
 
+            # 요약 전 회의록 저장 
+            document_id = app.state.project_collection.insert_meeting_transcript(
+                embedding_model=app.state.embedding_model,
+                project_id=project_id,
+                meeting_id=meeting_id,
+                document_id=document_id,
+                transcript_text=agenda_content
+            )
+            # 안건 내용이 없는 경우 패스
             if not agenda_content:
                 continue
             
