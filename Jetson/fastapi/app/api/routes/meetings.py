@@ -80,10 +80,10 @@ async def stt_task(app: FastAPI):
             await send_message(msg)
 
             # RAG 답변도 생성 > RAG 답변인 경우 docs까지 넘겨야 함
-            rag_answer = await rag.rag_process(app=app, query=transcript_text)
+            rag_answer = await rag.rag_process(app=app, query=transcript_text, project_id=app.state.project_id)
             message = rag_answer['answer']
-            # docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
-            docs = [1, 2, 3]
+            docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
+            # docs = [1, 2, 3]
             msg = STTMessage(type="rag", message=message, docs=docs)
             await send_message(msg)
 
@@ -136,20 +136,17 @@ async def prepare_meeting(
         )
         
         # 기존 코드 (모델 로드 순서대로 실행)
-        # app.state.stt_model = await llm_utils.load_stt_model(app=app)
-        # app.state.embedding_model = llm_utils.load_embedding_model(app=app)
-        # app.state.rag_model = llm_utils.load_rag_model(app=app)
-        
-        # 모델 로드를 백그라운드 스레드로 병렬 처리
-        stt_task = llm_utils.load_stt_model(app=app)  # 이미 async 함수임
-        embedding_task = asyncio.to_thread(llm_utils.load_embedding_model)
-        rag_task = asyncio.to_thread(llm_utils.load_rag_model)
-        app.state.stt_model, app.state.embedding_model, app.state.rag_model = await asyncio.gather(
-            stt_task, embedding_task, rag_task
-        )
         app.state.stt_model = await llm_utils.load_stt_model(app=app)
         app.state.embedding_model = llm_utils.load_embedding_model()
         app.state.rag_model = llm_utils.load_rag_model()
+        
+        # # 모델 로드를 백그라운드 스레드로 병렬 처리
+        # stt_task = llm_utils.load_stt_model(app=app)  # 이미 async 함수임
+        # embedding_task = asyncio.to_thread(llm_utils.load_embedding_model)
+        # rag_task = asyncio.to_thread(llm_utils.load_rag_model)
+        # app.state.stt_model, app.state.embedding_model, app.state.rag_model = await asyncio.gather(
+        #     stt_task, embedding_task, rag_task
+        # )
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
@@ -314,6 +311,7 @@ async def summarize_meetings(
         ]        
         summaries = await summary.summary_process(agenda_items, app)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
+        logger.info(summaries)
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
     else:
         raise HTTPException(status_code=400, detail="안건이 없습니다.")
