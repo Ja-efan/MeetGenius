@@ -106,7 +106,7 @@ async def test_project_list(app: FastAPI = Depends(get_app)):
 
 @router.get("/embedding", status_code=status.HTTP_200_OK)
 async def test_load_embedding_model(app: FastAPI = Depends(get_app)):
-    app.state.embeddings = load_embedding_model()
+    app.state.embedding_model = load_embedding_model()
     return {"message": "Embedding model loaded successfully!"}
 
 @router.get("/rag", status_code=status.HTTP_200_OK)
