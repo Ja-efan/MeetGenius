@@ -10,7 +10,6 @@ from app.schemes.responses import PrepareMeetingResponse, NextAgendaResponse, En
 from app.dependencies import get_app
 from app.services import rag, summary
 from app.utils import llm_utils, chromadb_utils, logging_config
-from dotenv import load_dotenv
 from app.services.audio import Audio_record
 
 

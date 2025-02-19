@@ -1,7 +1,5 @@
-from app.schemes.meetings import AgendaSummary
 import time
-import re
-import json
+from app.schemes.meetings import AgendaSummary
 from fastapi import FastAPI, HTTPException
 from app.utils import llm_utils, logging_config
 from typing import List
@@ -9,26 +7,6 @@ from app.schemes.meetings import AgendaDetail
 
 # 로깅 설정
 logger = logging_config.app_logger
-
-def extract_json_from_string(input_str: str) -> dict:
-    """
-    'json' 키워드 이후 첫 번째 JSON 객체를 추출하고 파싱하여 반환하는 함수
-    """
-    pattern = r"json\s*({.*?})"  # 가장 가까운 }까지 매칭
-    match = re.search(pattern, input_str, re.DOTALL)
-
-    if not match:
-        logger.error("Cannot find JSON object in the input string.")
-        return None  # JSON을 찾지 못했을 때 None 반환
-
-    json_str = match.group(1).strip()
-
-    try:
-        parsed_data = json.loads(json_str)  # JSON 파싱
-        return parsed_data
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 실패: {e}\n문제의 문자열: {json_str}")
-        return None
 
 
 async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
@@ -40,31 +18,30 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
     Returns:
         List[AgendaSummary]: 안건별 요약된 응답
     """
-    
+    logger.info(f"{len(agenda_items)} agendas in summary_process")
     logger.info(f"Agenda Items in summary_process: {agenda_items}")  # 안건 아이템 로그
 
     # Summary 모델 로드 
     if not hasattr(app.state, "summary_model"):
         logger.info(f"Summary model not found in app.state, loading...")
         app.state.summary_model = llm_utils.load_summary_model()
+        app.state.summary_model = llm_utils.load_summary_model()
     
-    # 필요한 모델 가져오기
-    summary_model = app.state.summary_model
-    
-    # 모델 로드되었는지 확인 
-    if not summary_model:
+    # 모델이 정상적으로 로드되었는지 확인 
+    if not app.state.summary_model:
         logger.error("Summary is not loaded properly. Please check the model.")
         raise HTTPException(status_code=500, detail="Summary 시스템이 완전히 로드되지 않았습니다. 다시 시도해주세요.")
     
     summaries = [] # 안건별 요약 결과 저장 리스트
     
     try:
-        for item in agenda_items:
+        for i, item in enumerate(agenda_items):
+            logger.info(f"Processing agenda {i+1} of {len(agenda_items)}")
             agenda_id = item.id
             agenda_title = item.title
-            agenda_result = item.content
+            agenda_content = item.content
 
-            if not agenda_result:
+            if not agenda_content:
                 continue
             
             prompt = f"""
@@ -81,35 +58,33 @@ async def summary_process(agenda_items: List[AgendaDetail], app: FastAPI):
             {agenda_title}
 
             #안건 내용
-            {agenda_result} 
+            {agenda_content} 
 
             #요약 내용
             """
-
-            
             # 요약 모델 호출
             start_time = time.time()
-            result = summary_model(
+            result = app.state.summary_model(
                 prompt, 
                 max_tokens=2000, 
                 temperature=0.0
             )
             end_time = time.time()
-            logger.info(f"Summary 응답 생성 시간: {end_time - start_time:.2f}초")
+            logger.info(f"회의록 요약 시간: {end_time - start_time:.2f}초")
             answer = result["choices"][0]["text"]
-            # answer = extract_json_from_string(answer)
 
-            if answer is None:
-                logger.error(f"agenda_id {agenda_id} 요약이 실패했습니다. 응답 내용: {answer}")
-                continue  
-
-            # **최종 결과 저장**
+            # 모델 답변 포매팅
             summaries.append(AgendaSummary(
                 id = agenda_id,
                 title=agenda_title,
                 summary=answer
             ))
-
+        
+        logger.info(f"Summary process completed. {len(summaries)} summaries generated.")
+        
+        # 모델 언로드
+        llm_utils.unload_models(app=app)
+        
         return summaries
     
     
