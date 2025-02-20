@@ -105,15 +105,15 @@ async def test_project_list():
 @router.get("/projects/{project_id}", status_code=status.HTTP_200_OK)
 async def test_project_documents(project_id: int, app: FastAPI = Depends(get_app)):
 
-    project_id = "PJT-" + str(project_id)
+    project_id_str = "PJT-" + str(project_id)
     chromadb_client = get_chromadb_client()
     if not chromadb_client.list_collections():
         return {"message": "No project collections found"}
     
-    if not project_id in chromadb_client.list_collections():
-        return {"message": f"Project {project_id} not found"}
+    if not project_id_str in chromadb_client.list_collections():
+        return {"message": f"Project {project_id_str} not found"}
     
-    project_collection = ProjectCollection(project_id=project_id, app=app)
+    project_collection = ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
     if not project_collection.get_documents():
         return {"message": "No documents found"}
     else:

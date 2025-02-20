@@ -47,6 +47,8 @@ async def get_documents(project_id: int, app=Depends(get_app)):
     """
     문서 조회 
     """
+    
+    project_id_str = "PJT-" + str(project_id)
     # chromadb client 생성
     if not hasattr(app.state, "chromadb_client"):
         app.state.chromadb_client = chromadb_utils.get_chromadb_client()
@@ -58,8 +60,18 @@ async def get_documents(project_id: int, app=Depends(get_app)):
         app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
         logger.info(f"Project collection created successfully!")
 
+    if project_id_str not in app.state.chromadb_client.list_collections():
+        logger.info(f"Project collection not found in app.state, creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
+        logger.info(f"Project collection created successfully!")
+
     documents = app.state.project_collection.get_documents()
-    logger.info(f"Project {project_id} documents: {documents['ids']}")
+    
+    if not documents:
+        logger.info(f"No documents found for {project_id_str}")
+        raise HTTPException(status_code=404, detail=f"{project_id_str}에 문서가 존재하지 않습니다.")
+    
+    logger.info(f"{project_id_str} documents: {documents['ids']}")
     
     return {"message": "문서 조회 완료", "documents": documents}   
 
