@@ -1,10 +1,6 @@
-from curses.ascii import isdigit
 from fastapi import FastAPI
-import chromadb
 from chromadb import PersistentClient, HttpClient
-from numpy import where
 from app.schemes.documents import DocumentList
-from app.utils.llm_utils import load_embedding_model
 from app.utils import logging_config
 import platform
 from langchain.text_splitter import RecursiveCharacterTextSplitter
