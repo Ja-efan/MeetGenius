@@ -61,9 +61,8 @@ async def get_documents(project_id: int, app=Depends(get_app)):
         logger.info(f"Project collection created successfully!")
 
     if project_id_str not in app.state.chromadb_client.list_collections():
-        logger.info(f"Project collection not found in app.state, creating new one...")
-        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
-        logger.info(f"Project collection created successfully!")
+        logger.info(f"Project {project_id_str} not found in chromadb client")
+        return {"message": f"{project_id_str}이 존재하지 않습니다."}
 
     documents = app.state.project_collection.get_documents()
     
