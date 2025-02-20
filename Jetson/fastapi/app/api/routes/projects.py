@@ -29,6 +29,9 @@ def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_ap
         project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
         logger.info(f"Project collection created successfully!")
 
+    if "PJT-" + str(project_id) != project_collection.project_id:
+        project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
+
     embeddings = llm_utils.load_embedding_model()
 
     # 문서 삽입 
