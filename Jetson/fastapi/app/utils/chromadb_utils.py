@@ -193,7 +193,12 @@ class ProjectCollection:
         # 각 청크에 대한 메타데이터와 거리를 포함하여 쿼리 실행
         results = self.collection.query(
             query_embeddings=agenda_embedding,
-            where={"project_id": self.project_id},
+            where={
+                "$and": [
+                    {"project_id": self.project_id},
+                    {"document_type": 2}
+                ]
+            },
             n_results=n_results,
             include=["metadatas", "distances"]
         )
