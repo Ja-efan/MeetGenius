@@ -9,7 +9,7 @@ class STTMessage(BaseModel):
     """
     type: str = Field(..., description="메시지 타입 (예: 'plain', 'query', 'rag')")
     message: str = Field(..., description="메시지 내용")
-    docs: list | None = Field(..., description="RAG 답변 관련 문서 ID 리스트")
+    agenda_docs: list | None = Field(..., description="RAG 답변 관련 문서 ID 리스트")
 
 class Agenda(BaseModel):
     """

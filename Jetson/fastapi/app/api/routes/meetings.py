@@ -75,19 +75,19 @@ async def stt_task(app: FastAPI):
         # (5) 트리거 키워드(“아리”, “아리야” 등) 감지 및 메시지 전송
         if any(keyword in transcript_text for keyword in trigger_keywords):
             logger.info(f"트리거 키워드 감지: {transcript_text}")
-            msg = STTMessage(type="query", message=transcript_text, docs=None)
+            msg = STTMessage(type="query", message=transcript_text, agenda_docs=None)
             await send_message(msg)
 
             # RAG 답변도 생성 > RAG 답변인 경우 docs까지 넘겨야 함
             rag_answer = await rag.rag_process(app=app, query=transcript_text, project_id=app.state.project_id)
             message = rag_answer['answer']
-            docs = rag_answer['docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
+            docs = rag_answer['agenda_docs']  ##################### 크로마db에 데이터 없을 경우 이 DOCS가 비어있어서 Django쪽에서 에러 발생...
             # docs = [1, 2, 3]
-            msg = STTMessage(type="rag", message=message, docs=docs)
+            msg = STTMessage(type="rag", message=message, agenda_docs=docs)
             await send_message(msg)
 
         else:            # 트리거 미포함 일반 메시지
-            msg = STTMessage(type="plain", message=transcript_text, docs=None)
+            msg = STTMessage(type="plain", message=transcript_text, agenda_docs=None)
             if not msg.message.strip():                # 빈 문자열이면 건너뜀
                 continue
             logger.info(f"일반 음성 메시지: {msg.message}")
