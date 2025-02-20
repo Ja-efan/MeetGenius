@@ -103,7 +103,7 @@ class ProjectCollection:
         
         return inserted_ids
     
-    def insert_meeting_transcript(self, embedding_model, project_id, meeting_id, document_id, transcript_text):
+    def insert_meeting_transcript(self, embedding_model, meeting_id, document_id, transcript_text):
         """요약전 회의록 텍스트 삽입"""
         # 회의록 텍스트 임베딩
 
@@ -125,7 +125,7 @@ class ProjectCollection:
                 "chunk_size": len(chunk),
                 "document_type": 0,  # 요약 전 회의록
                 "meeting_id": meeting_id,
-                "project_id": project_id
+                "project_id": self.project_id
             }
 
             # 청크 추가

@@ -32,14 +32,17 @@ class AgendaDetail(Agenda):
     상세 안건 모델.
     기본 안건 모델에 회의 진행 중 기록된 상세 내용을 추가합니다.
     """
+    id: int = Field(..., description="안건 ID")
+    title: str = Field(..., description="안건 제목")
     content: str = Field(..., description="안건에 대한 상세 내용 또는 논의 결과")
+    document_id: int = Field(..., description="안건별 회의록 ID")
 
 class MeetingAgendaDetails(BaseModel):
     """
     회의 진행 중 또는 결과로 반환할 상세 안건 목록 모델.
     """
     project_id: int = Field(..., description="프로젝트 ID")
-    document_id: int = Field(..., description="회의록 ID")
+    # document_id: int = Field(..., description="회의록 ID")
     agendas: List[AgendaDetail] = Field(..., description="상세 안건 목록")
 
 class AgendaSummary(BaseModel):

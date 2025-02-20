@@ -10,8 +10,7 @@ logger = logging_config.app_logger
 
 
 async def summary_process(project_id: int,
-                          meeting_id: int, 
-                          document_id: int,
+                          meeting_id: int,
                           agenda_items: List[AgendaDetail], 
                           app: FastAPI):
     """안건별 요약 처리 함수
@@ -49,6 +48,10 @@ async def summary_process(project_id: int,
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found in app.state, loading...")
         app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
+        
+    if 'PJT-' + str(project_id) != app.state.project_collection.project_id:
+        logger.info(f"Project ID mismatch. Expected: {project_id}, Actual: {app.state.project_collection.project_id}")
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
 
     
     summaries = [] # 안건별 요약 결과 저장 리스트
@@ -59,13 +62,13 @@ async def summary_process(project_id: int,
             agenda_id = item.id
             agenda_title = item.title
             agenda_content = item.content
+            agenda_document_id = item.document_id
 
             # 요약 전 회의록 저장 
-            document_id = app.state.project_collection.insert_meeting_transcript(
+            app.state.project_collection.insert_meeting_transcript(
                 embedding_model=app.state.embedding_model,
-                project_id=project_id,
                 meeting_id=meeting_id,
-                document_id=document_id,
+                document_id=agenda_document_id,
                 transcript_text=agenda_content
             )
             # 안건 내용이 없는 경우 패스

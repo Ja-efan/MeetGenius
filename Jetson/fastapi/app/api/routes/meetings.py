@@ -134,6 +134,8 @@ async def prepare_meeting(
             app=app
         )
         
+        # -> project_collection 생성 시 app.state에 project_id가 "PJT-xx" 형식으로 저장됨
+        
         # 기존 코드 (모델 로드 순서대로 실행)
         app.state.stt_model = await llm_utils.load_stt_model(app=app)
         app.state.embedding_model = llm_utils.load_embedding_model()
@@ -305,10 +307,10 @@ async def summarize_meetings(
     if item.agendas:
         # 각 안건 정보를 dict로 변환하여 요약 처리 함수에 전달
         agenda_items = [
-            AgendaDetail(id=agenda.id, title=agenda.title, content=agenda.content) 
+            AgendaDetail(id=agenda.id, title=agenda.title, content=agenda.content, document_id=agenda.document_id) 
             for agenda in item.agendas
         ]        
-        summaries = await summary.summary_process(item.project_id, meeting_id, item.document_id, agenda_items, app)
+        summaries = await summary.summary_process(item.project_id, meeting_id, agenda_items, app)
         # 요약 결과는 각 안건에 대해 "title", "original_content", "summary" 형태로 구성
         logger.info(summaries)
         return SummaryResponse(meeting_id=meeting_id, summary=summaries)
