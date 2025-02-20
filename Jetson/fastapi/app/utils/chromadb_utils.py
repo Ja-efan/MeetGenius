@@ -1,3 +1,4 @@
+from curses.ascii import isdigit
 from fastapi import FastAPI
 import chromadb
 from chromadb import PersistentClient, HttpClient
@@ -41,7 +42,10 @@ class ProjectCollection:
             project_id (int): 프로젝트 ID
             app (FastAPI): FastAPI 인스턴스
         """
-        self.project_id = "PJT-" + str(project_id) # ChromaDB는 int 지원하지 않으므로 str으로 변환
+        if isinstance(project_id, int):
+            self.project_id = "PJT-" + str(project_id) # ChromaDB는 int 지원하지 않으므로 str으로 변환
+        else:
+            self.project_id = project_id
         logger.info(f"Project ID: {self.project_id}")
         app.state.project_id = self.project_id
         

@@ -46,12 +46,24 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
         str: RAG 응답 (검색된 문서 기반 생성)
     """
     
+    # project_id가 int가 아니라 PJT-xx로 넘어올 수도 있음
+    if isinstance(project_id, str):
+        project_id = int(project_id.replace("PJT-", ""))
+    
     # chromadb client 생성
     if not hasattr(app.state, "chromadb_client"):
         app.state.chromadb_client = chromadb_utils.get_chromadb_client()
         logger.info(f"Chromadb client created successfully!")
     
-    # 필요한 모델과 DB가 로드되었는지 확인 
+    # 필요한 DB가 로드되었는지 확인 
+    """
+    현재 app.state에 project_collection이 없는 경우 
+    -> 새로운 ProjectCollection 인스턴스 생성 
+
+    현재 app.state에 project_collection이 있는 경우 
+    -> 기존 project_collection의 project_id와 현재 project_id가 다른 경우 
+    -> 새로운 ProjectCollection 인스턴스 생성 
+    """
     if not hasattr(app.state, "project_collection"):
         # logger.info(f"Project collection not found in app.state, loading ... (project_id: '{app.state.project_id}')")
         app.state.project_collection = chromadb_utils.ProjectCollection(
@@ -60,6 +72,7 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
             app=app
         )
         logger.info(f"Project collection loaded successfully!")
+        
     elif app.state.project_collection.project_id != "PJT-" + str(project_id):
         # logger.info(f"Project collection project_id mismatch, reloading ... (project_id: '{app.state.project_id}')")
         app.state.project_collection = chromadb_utils.ProjectCollection(
