@@ -181,29 +181,37 @@ def load_summary_model():
         return None
 
 
-def unload_models(app: FastAPI):
+def unload_models(app: FastAPI,
+                  embedding_model=False, 
+                  rag_model=False, 
+                  summary_model=False, 
+                  stt_model=False):
     """
     FastAPI 상태(app.state)에서 모델을 제거하여 메모리 해제 
     """
-    if hasattr(app.state, "stt_model"):
-        logger.info(f"Unloading model: stt_model")
-        del app.state.stt_model
-        logger.info(f"STT model unloaded!")
+    if stt_model:
+        if hasattr(app.state, "stt_model"):
+            logger.info(f"Unloading model: stt_model")
+            del app.state.stt_model
+            logger.info(f"STT model unloaded!")
 
-    if hasattr(app.state, "embedding_model"):
-        logger.info(f"Unloading model: embedding_model")
-        del app.state.embedding_model
+    if embedding_model:
+        if hasattr(app.state, "embedding_model"):
+            logger.info(f"Unloading model: embedding_model")
+            del app.state.embedding_model
         logger.info(f"Embedding model unloaded!")
 
-    if hasattr(app.state, "rag_model"):
-        logger.info(f"Unloading model: rag_model")
-        del app.state.rag_model
-        logger.info(f"RAG model unloaded!")
+    if rag_model:
+        if hasattr(app.state, "rag_model"):
+            logger.info(f"Unloading model: rag_model")
+            del app.state.rag_model
+            logger.info(f"RAG model unloaded!")
     
-    if hasattr(app.state, "summary_model"):
-        logger.info(f"Unloading model: summary_model")
-        del app.state.summary_model
-        logger.info(f"Summary model unloaded!")
+    if summary_model:
+        if hasattr(app.state, "summary_model"):
+            logger.info(f"Unloading model: summary_model")
+            del app.state.summary_model
+            logger.info(f"Summary model unloaded!")
     
     # 메모리 정리
     gc.collect()

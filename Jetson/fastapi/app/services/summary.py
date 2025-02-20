@@ -29,22 +29,17 @@ async def summary_process(project_id: int,
         logger.info(f"Summary model not found in app.state, loading...")
         app.state.summary_model = llm_utils.load_summary_model()
     
-    # 요약 모델이 정상적으로 로드되었는지 확인 
-    if not app.state.summary_model:
-        logger.error("Summary is not loaded properly. Please check the model.")
-        raise HTTPException(status_code=500, detail="Summary 시스템이 완전히 로드되지 않았습니다. 다시 시도해주세요.")
-    
-    # 임베딩 모델이 정상적으로 로드되었는지 확인 
+    # 임베딩 모델 로드  
     if not hasattr(app.state, "embedding_model"):
         logger.info(f"Embedding model not found in app.state, loading...")
         app.state.embedding_model = llm_utils.load_embedding_model()
 
-    # ChromaDB클라이언트가 정상적으로 로드되었는지 확인 
+    # ChromaDB 클라이언트 로드 
     if not hasattr(app.state, "chromadb_client"):
         logger.info(f"Chromadb client not found in app.state, loading...")
         app.state.chromadb_client = chromadb_utils.get_chromadb_client()
     
-    # 프로젝트 컬렉션이 정상적으로 로드되었는지 확인 
+    # 프로젝트 컬렉션 로드 
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found in app.state, loading...")
         app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
