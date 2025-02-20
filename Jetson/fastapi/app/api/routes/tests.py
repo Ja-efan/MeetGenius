@@ -1,7 +1,7 @@
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from app.services import rag, summary
-from app.schemes.meetings import AgendaDetail
+from app.schemes.meetings import AgendaDetail, STTMessage
 from app.dependencies import get_app
 from app.utils.chromadb_utils import ProjectCollection, get_chromadb_client
 from app.utils.llm_utils import load_embedding_model, load_rag_model, load_summary_model, unload_models, load_stt_model
@@ -36,8 +36,11 @@ async def rag_test(project_id: int, app: FastAPI = Depends(get_app)):
     # app.state.project_id = project_id
     answers = []
     for query in queries:
-        answer = await rag.rag_process(app=app, query=query, project_id=project_id)
-        answers.append(answer)
+
+        reuslt = await rag.rag_process(app=app, query=query, project_id=project_id)
+        msg = STTMessage(type='rag', message=reuslt['answer'], agenda_docs=reuslt['agenda_docs'])
+        answers.append(msg)
+
     return answers
 
 

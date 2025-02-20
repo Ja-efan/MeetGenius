@@ -101,9 +101,9 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
     
     print(f"search_results['metadatas']: {search_results['metadatas']}")
     retrieved_content = search_results["documents"][0]
-    retrieved_doc_ids = search_results["metadatas"][0][0]["document_id"]
+    retrieved_doc_id = search_results["metadatas"][0][0]["document_id"]
     
-    if not retrieved_doc_ids:
+    if not retrieved_doc_id:
         return {"answer": "문서에서 해당 내용을 찾을 수 없습니다.", "agenda_docs": []}
     
     # 프롬프트 구성 (EXAONE3.5)
@@ -135,9 +135,11 @@ async def rag_process(query: str, app: FastAPI, project_id: int):
     end_time = time.time()
     logger.info(f"RAG 응답 생성 시간: {end_time - start_time:.2f}초")
 
+    logger.info(f"result: {result}")
+    
     # 답변 형식 정리 
     answer = result["choices"][0]["text"]
     
     answer = extract_answer(answer)
-    return {"answer": answer, "agenda_docs": retrieved_doc_ids}
+    return {"answer": answer, "agenda_docs": [retrieved_doc_id]}
 
