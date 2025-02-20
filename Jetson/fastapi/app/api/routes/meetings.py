@@ -136,18 +136,15 @@ async def prepare_meeting(
         
         # -> project_collection 생성 시 app.state에 project_id가 "PJT-xx" 형식으로 저장됨
         
-        # 기존 코드 (모델 로드 순서대로 실행)
-        app.state.stt_model = await llm_utils.load_stt_model(app=app)
-        app.state.embedding_model = llm_utils.load_embedding_model()
-        app.state.rag_model = llm_utils.load_rag_model()
         
-        # # 모델 로드를 백그라운드 스레드로 병렬 처리
-        # stt_task = llm_utils.load_stt_model(app=app)  # 이미 async 함수임
-        # embedding_task = asyncio.to_thread(llm_utils.load_embedding_model)
-        # rag_task = asyncio.to_thread(llm_utils.load_rag_model)
-        # app.state.stt_model, app.state.embedding_model, app.state.rag_model = await asyncio.gather(
-        #     stt_task, embedding_task, rag_task
-        # )
+        # 라이브 시연을 위한 코드 수정 (한 번 확인 후 모델 로드)
+        if not hasattr(app.state, "stt_model"):
+            app.state.stt_model = await llm_utils.load_stt_model(app=app)
+        if not hasattr(app.state, "embedding_model"):
+            app.state.embedding_model = llm_utils.load_embedding_model()
+        if not hasattr(app.state, "rag_model"):
+            app.state.rag_model = llm_utils.load_rag_model()
+    
         
         # chromadb 및 모델 로드 완료 시 회의 준비 완료 처리
         app.state.is_meeting_ready = True
@@ -157,7 +154,7 @@ async def prepare_meeting(
         
         # 안건 관련 문서 상태 초기화 및 저장
         app.state.agenda_docs = {}
-        logger.info(f"agenda_docs: {app.state.agenda_docs}")
+        # logger.info(f"agenda_docs: {app.state.agenda_docs}")
         # meeting_info.agendas 로 변경 (기존 agenda_list → agendas)
         app.state.agenda_list = meeting_info.agendas
         logger.info(f"agenda_list: {app.state.agenda_list}")
@@ -168,7 +165,7 @@ async def prepare_meeting(
             )
 
         # 백그라운드 작업 시작
-        background_tasks.add_task(stt_task, app=app)
+        # background_tasks.add_task(stt_task, app=app)
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
 
@@ -256,7 +253,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
             # app.state.stt_running = False
 
             # 관련 모델 언로드: app.state 에 저장된 모델들에 대한 참조 삭제 
-            llm_utils.unload_models(app=app)
+            llm_utils.unload_models(app=app, stt_model=True, embedding_model=True, rag_model=True)
             
             # 추가로 필요 없는 상태 값들도 삭제 
             for attr in ["project_collection", "is_meeting_ready", "agenda_docs", "agenda_list"]:

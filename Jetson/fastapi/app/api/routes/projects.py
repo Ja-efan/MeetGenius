@@ -19,28 +19,28 @@ def insert_documents(project_id: int, documents:DocumentList, app=Depends(get_ap
     """
 
     # chromdb client 생성
-    if not hasattr(app.state, "chromadb_client"):
-        chromadb_client = chromadb_utils.get_chromadb_client()
-        logger.info(f"Chromadb client created successfully!")
+    logger.info(f"Loading chromadb client...")
+    chromadb_client = chromadb_utils.get_chromadb_client()
+    logger.info(f"Chromadb client loaded successfully!")
 
     # 프로젝트 컬렉션 초기화 
-    if not hasattr(app.state, "project_collection"):
-        logger.info(f"Project collection not found in app.state, creating new one...")
-        project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
-        logger.info(f"Project collection created successfully!")
+    logger.info(f"Loading project collection...")
+    project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
+    logger.info(f"Project collection loaded successfully!")
 
-    if "PJT-" + str(project_id) != project_collection.project_id:
-        project_collection = chromadb_utils.ProjectCollection(client=chromadb_client, project_id=project_id, app=app)
-
-    embeddings = llm_utils.load_embedding_model()
+    if not hasattr(app.state, "embedding_model"):
+        app.state.embedding_model = llm_utils.load_embedding_model()
 
     # 문서 삽입 
     logger.info(f"Inserting documents into project collection...")
-    inserted_ids = project_collection.insert_documents(embeddings, documents)
+    inserted_ids = project_collection.insert_documents(app.state.embedding_model, documents)
     logger.info(f"Documents inserted successfully!")
     
     # 모델 언로드 
-    llm_utils.unload_models(app=app)
+    # llm_utils.unload_models(app=app, embedding_model=True)
+    # 변수 제거
+    del chromadb_client
+    del project_collection
 
     return DocumentInsertResponse(success=True, message="문서 삽입 완료", num_inserted=len(inserted_ids), inserted_ids=inserted_ids)
 
