@@ -89,14 +89,19 @@ async def delete_document(project_id: int, document_id: int, app=Depends(get_app
     if not hasattr(app.state, "project_collection"):
         logger.info(f"Project collection not found for project {project_id}. Creating new one...")
         app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
-    # else:
-    #     if app.state.project_collection.project_id != str(project_id):
-    #         logger.info(f"Project collection found for project {project_id}, but it's not the correct one. Creating new one...")
-    #         app.state.project_collection = chromadb_utils.ProjectCollection(str(project_id), app)
+        
+    if app.state.project_collection.project_id != "PJT-" + str(project_id):
+        logger.info(f"Project collection found for project {project_id}, but it's not the correct one. Creating new one...")
+        app.state.project_collection = chromadb_utils.ProjectCollection(client=app.state.chromadb_client, project_id=project_id, app=app)
 
     documents = app.state.project_collection.get_documents() # 삭제하려는 문서 존재 확인(get_documents)
     
-    document_ids = documents['ids']
+    
+    # logger.info(f"documents: {documents}")
+    
+    metadatas = documents['metadatas']
+    document_ids = [metadata['document_id'] for metadata in metadatas]
+    
     
     # 프로젝트에 문서가 존재하지 않는 경우
     if not document_ids:
@@ -104,12 +109,12 @@ async def delete_document(project_id: int, document_id: int, app=Depends(get_app
         raise HTTPException(status_code=404, detail=f"프로젝트 {project_id}에 문서가 존재하지 않습니다.")
     
     # 삭제하려는 문서가 존재하지 않는 경우
-    if str(document_id) not in document_ids:
+    if document_id not in document_ids:
         logger.info(f"Document {document_id} not found in project {project_id}")
         raise HTTPException(status_code=404, detail=f"문서 {document_id}를 찾을 수 없습니다.")
     
     logger.info(f"Deleting document {document_id} from project collection...")
-    result = app.state.project_collection.delete_documents(document_id)
+    result = app.state.project_collection.delete_document(document_id)
     logger.info(f"Document {document_id} deleted successfully!")
 
     return DocumentDeleteResponse(success=result, message=f"문서 {document_id} 삭제 완료", num_deleted=1, deleted_ids=[document_id])

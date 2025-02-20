@@ -147,23 +147,13 @@ class ProjectCollection:
         return documents 
     
 
-    def delete_documents(self, doc_id: int) -> bool:
-        """특정 문서 ID가 존재하는지 확인하고, 존재하면 삭제 후 True 반환, 없으면 False 반환"""
-        
-        # ChromaDB의 ID는 문자열이므로 변환
-        doc_id_str = str(doc_id)
+    def delete_document(self, doc_id: int) -> bool:
+        """문서 삭제 후 True 반환, 없으면 False 반환"""
 
-        logger.info(f"Deleting document: {doc_id_str}")
-        # 현재 저장된 문서 목록 조회
-        existing_docs = self.collection.get(ids=[doc_id_str], include=["documents"])
-        
-        # 문서가 존재하는지 확인
-        if not existing_docs["documents"]:
-            logger.info(f"Document {doc_id} not found.")    
-            return False  # 문서가 존재하지 않음
+        logger.info(f"Deleting document: {doc_id} from {self.project_id}")
 
         # 문서 삭제
-        self.collection.delete(ids=[doc_id_str])
+        self.collection.delete(where={"document_id": doc_id})
         logger.info(f"Deleted document: {doc_id}")
         
         return True  # 삭제 성공
