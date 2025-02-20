@@ -165,7 +165,7 @@ async def prepare_meeting(
             )
 
         # 백그라운드 작업 시작
-        # background_tasks.add_task(stt_task, app=app)
+        background_tasks.add_task(stt_task, app=app)
         logger.info(f"Meeting '{meeting_id}' preparation completed.")
         logger.info(f"Agenda docs: {app.state.agenda_docs}")
 
@@ -253,7 +253,7 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
             # app.state.stt_running = False
 
             # 관련 모델 언로드: app.state 에 저장된 모델들에 대한 참조 삭제 
-            llm_utils.unload_models(app=app, stt_model=True, embedding_model=True, rag_model=True)
+            llm_utils.unload_models(app=app, stt_model=True)
             
             # 추가로 필요 없는 상태 값들도 삭제 
             for attr in ["project_collection", "is_meeting_ready", "agenda_docs", "agenda_list"]:
@@ -261,11 +261,11 @@ async def end_meeting(meeting_id: int, app: FastAPI = Depends(get_app)):
                     logger.info(f"🔄 [INFO] Deleting attribute: {attr}")
                     delattr(app.state, attr)
 
-            # 메모리 정리
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.ipc_collect()  # IPC 캐시 정리 
-                torch.cuda.empty_cache()  # VRAM  메모리 캐시 정리 
+            # # 메모리 정리
+            # gc.collect()
+            # if torch.cuda.is_available():
+            #     torch.cuda.ipc_collect()  # IPC 캐시 정리 
+            #     torch.cuda.empty_cache()  # VRAM  메모리 캐시 정리 
                 
             logger.info("Memory cleaned up.")
             return EndMeetingResponse(meeting_id=meeting_id, stt_running=False)

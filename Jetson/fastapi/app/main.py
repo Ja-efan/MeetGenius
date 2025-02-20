@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(dotenv_path='./.env')
 
 from fastapi import FastAPI, Depends
 from app.api.routes import meetings, projects, tests
@@ -34,4 +34,5 @@ app.include_router(tests.router)
 async def startup_event():
     app.state.embedding_model = llm_utils.load_embedding_model()
     app.state.rag_model = llm_utils.load_rag_model()
+    # app.state.summary_model = llm_utils.load_summary_model()
     # app.state.stt_model = await llm_utils.load_stt_model(app=app)

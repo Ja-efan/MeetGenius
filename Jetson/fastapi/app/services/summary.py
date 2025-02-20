@@ -24,10 +24,15 @@ async def summary_process(project_id: int,
     logger.info(f"{len(agenda_items)} agendas in summary_process")
     logger.info(f"Agenda Items in summary_process: {agenda_items}")  # 안건 아이템 로그
 
-    # Summary 모델 로드 
-    if not hasattr(app.state, "summary_model"):
+    # # Summary 모델 로드 
+    # if not hasattr(app.state, "summary_model"):
+    #     logger.info(f"Summary model not found in app.state, loading...")
+    #     app.state.summary_model = llm_utils.load_summary_model()
+
+     # Summary 모델 로드  -> 라이브 시연 코드 (rag와 동일한 모델 사용하도록 수정)
+    if not hasattr(app.state, "rag_model"):
         logger.info(f"Summary model not found in app.state, loading...")
-        app.state.summary_model = llm_utils.load_summary_model()
+        app.state.rag_model = llm_utils.rag_model()
     
     # 임베딩 모델 로드  
     if not hasattr(app.state, "embedding_model"):
@@ -88,9 +93,17 @@ async def summary_process(project_id: int,
 
             #요약 내용
             """
-            # 요약 모델 호출
+            # # 요약 모델 호출
+            # start_time = time.time()
+            # result = app.state.summary_model(
+            #     prompt, 
+            #     max_tokens=2000, 
+            #     temperature=0.0
+            # )
+
+            # 요약 모델 호출 -> 라이브 시연 코드 
             start_time = time.time()
-            result = app.state.summary_model(
+            result = app.state.rag_model(
                 prompt, 
                 max_tokens=2000, 
                 temperature=0.0
