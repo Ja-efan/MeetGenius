@@ -151,3 +151,10 @@ async def test_load_summary_model(app: FastAPI = Depends(get_app)):
 async def test_unload_models(app: FastAPI = Depends(get_app)):
     unload_models(app)
     return {"message": "Models unloaded successfully!"}
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_200_OK)
+async def test_remove_collection(project_id: int, app: FastAPI = Depends(get_app)):
+    project_id_str = "PJT-" + str(project_id)
+    chromadb_client = get_chromadb_client()
+    chromadb_client.delete_collection(project_id_str)
+    return {"message": "Collection removed successfully!"}
