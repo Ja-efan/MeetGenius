@@ -1,0 +1,47 @@
+services:
+  fastapi:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile
+    container_name: fastapi-server
+    ports:
+      - "8000:8000"
+    # 코드 저장소
+    volumes:
+      - ./fastapi:/fastapi
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    env_file:
+    - ./fastapi/.env  # .env 파일 적용
+    runtime: nvidia
+    networks:
+      - app_network_04
+    working_dir: /fastapi    # 기본 디렉터리 설정
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    devices:
+      - "/dev/snd:/dev/snd"
+    privileged: true
+
+
+  chromadb:
+    build:
+      context: ./chromaDB
+      dockerfile: Dockerfile
+    container_name: chromadb-server
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./chromaDB/data:/chroma/chroma/
+    environment:
+      - CHROMA_HOST_ADDR=0.0.0.0
+      - CHROMA_HOST_PORT=8001   # 여기서 포트를 8001로 지정
+      - CHROMA_WORKERS=1
+      - CHROMA_LOG_CONFIG=chromadb/log_config.yml
+      - CHROMA_TIMEOUT_KEEP_ALIVE=30
+    networks:
+      - app_network_04
+
+networks:
+  app_network_04:
+    driver: bridge
