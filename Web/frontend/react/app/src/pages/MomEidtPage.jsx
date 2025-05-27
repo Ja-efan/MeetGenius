@@ -162,7 +162,7 @@ const MomEditPage = () => {
     );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // moms 배열을 momsToSubmit 객체로 감싸기
     const momsToSubmit = {
       "moms": editedMoms.map((mom) => ({
@@ -173,7 +173,9 @@ const MomEditPage = () => {
     console.log("Modified Moms:", momsToSubmit);
   
     // 예시: 서버로 제출
-    patchMom(meetingId, momsToSubmit);
+    const response = await patchMom(meetingId, momsToSubmit);
+    console.log("수정 제출 응답", response.data)
+    window.close(); // 창 닫기
   };
   if (!meetingDetails) return <PageWrapper><Container>회의록을 불러오는 중...</Container></PageWrapper>;
 

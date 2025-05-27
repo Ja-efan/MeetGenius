@@ -167,10 +167,12 @@ REST_AUTH_SERIALIZERS = {
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://192.168.31.48:5173"]
+    "http://192.168.31.48:5173",
+    "http://192.168.0.32:5173"]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "http://192.168.31.48:5173"]
+    "http://192.168.31.48:5173",
+    "http://192.168.0.32:5173"]
 
 # ACCOUNT_AUTHENTICATION_METHOD = "employee_number"
 # ACCOUNT_USER_MODEL_USERNAME_FIELD = None  # username 필드 없음

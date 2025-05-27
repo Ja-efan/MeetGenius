@@ -1,0 +1,53 @@
+services:
+  backend:
+    build:
+      context: ./backend/django/app
+      dockerfile: Dockerfile      
+    env_file:
+      - ./backend/django/app/.env
+    container_name: backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build:
+      context: ./backend/django/app
+      dockerfile: Dockerfile      
+    env_file:
+      - ./backend/django/app/.env
+    container_name: celery
+    command: celery -A ai203 worker --loglevel=info --pool=solo
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend/react/app
+      dockerfile: Dockerfile
+    env_file:
+      - ./frontend/react/app/.env
+    container_name: frontend
+    ports:
+      - "5173:5173"         
+      
+  db:
+    image: mariadb:latest
+    container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pw
+      MYSQL_DATABASE: test_maria
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - "C:/Users/SSAFY/Desktop/code/S12P11B203/Web/backend/MariaDB/dump-test_maria-202502201929.sql:/docker-entrypoint-initdb.d/dump-test_maria-202502201929.sql"
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
