@@ -1,6 +1,6 @@
 # MeetGenius
 
-<img src="./images/배너.png" width="50%"> 
+<img src="./images/배너.png"> 
 
 ## 💡 개요
 - 서비스명 : MeetGenius
@@ -148,7 +148,7 @@
 
 - 프로젝트 생성: 프로젝트 이름, 내용, 참여자 목록을 입력하여 프로젝트 단위로 관리할 수 있음
 
-<img src="./images/프로젝트생성.gif" alt="프로젝트생성" width="50%"> 
+<img src="./images/프로젝트생성.gif" alt="프로젝트생성"> 
 
 </br>
 
@@ -156,7 +156,7 @@
 
 - 프로젝트 관련 문서 삽입: 문서는 Maria DB에 저장된 후 **Chroma DB에 벡터화**되어 저장 → **회의 중 AI 비서(아리)의 문서 탐색에 활용**  
 
-<img src="./images/프로젝트문서삽입.gif" alt="프로젝트문서삽입" width="50%"> 
+<img src="./images/프로젝트문서삽입.gif" alt="프로젝트문서삽입"> 
 
 </br>
 
@@ -164,7 +164,7 @@
 - 회의 예약: 프로젝트 참여자 목록을 자동으로 불러와 편리한 회의 설정
 - 실시간 회의 페이지에서 안건과 관련된 문서를 확인할 수 있음
 
-<img src="./images/회의예약.gif" alt="회의예약" width="50%"> 
+<img src="./images/회의예약.gif" alt="회의예약"> 
 
 </br>
 
@@ -172,8 +172,8 @@
 - 프로젝트 삭제 제한: 프로젝트 마스터가 아닌 경우 프로젝트 삭제가 제한됨  
 - 회의 취소 제한: 회의 참여자가 아닌 경우 회의를 취소할 수 없음
 
-<img src="./images/프로젝트삭제권한없음.gif" alt="프로젝트삭제권한없음" width="50%">
-<img src="./images/회의취소권한없음.gif" alt="회의취소권한없음" width="50%">
+<img src="./images/프로젝트삭제권한없음.gif" alt="프로젝트삭제권한없음">
+<img src="./images/회의취소권한없음.gif" alt="회의취소권한없음">
 
 </br>
    
@@ -182,7 +182,7 @@
 - **STT(음성 인식, Whisper Model) 기반 실시간 회의록 생성**  
 - 회의 내용은 Redis를 통해 모든 사용자에게 동기화
 
-<img src="./images/실시간회의기록.gif" alt="실시간회의기록" width="50%">
+<img src="./images/실시간회의기록.gif" alt="실시간회의기록">
 
 </br>
 
@@ -201,7 +201,7 @@
         - 웹 애플리케이션(React)에서 Redis의 SSE 스트림을 수신
         - 실시간으로 관련 문서를 화면에 표시
   
-<img src="./images/RAG.gif" alt="RAG" width="50%">
+<img src="./images/RAG.gif" alt="RAG">
 
 </br>
 
@@ -217,7 +217,7 @@
         - 지난 안건 STT 데이터 (STT_history)
     - Django가 Redis Pub/Sub을 통해 데이터 전송, 프론트엔드는 SSE를 활용해 실시간 반영
 
-<img src="./images/동일화면.gif" alt="동일화면" width="50%">
+<img src="./images/동일화면.gif" alt="동일화면">
 
 </br>
 
@@ -231,7 +231,7 @@
     3. FastAPI에서 AI 모델을 통해 안건별로 회의록 내용 요약 후 반환
     4. Django가 받은 요약 결과를 MariaDB에 저장 후 프론트엔드에 전달달
 
-<img src="./images/회의록요약.gif" alt="회의록요약" width="50%">
+<img src="./images/회의록요약.gif" alt="회의록요약">
 
 </br>
 
@@ -239,14 +239,14 @@
 
 ## 📄 설계 
 ### 아키텍처
- <img src="images/시스템 아키텍처.png" width="50%">  
+ <img src="images/시스템 아키텍처.png">  
 
  </br>
 
- <img src="images/작동방법.png" width="50%">  
+ <img src="images/작동방법.png">  
 
 ### ERD
- <img src="images/ERD.png" width="50%">  
+ <img src="images/ERD.png">  
 
 
 <br>
